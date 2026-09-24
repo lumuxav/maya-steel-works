@@ -18,6 +18,7 @@ const Icon = ({ name }) => {
     alert: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></>,
     settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21h-4v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1A1.7 1.7 0 0 0 4.6 15 1.7 1.7 0 0 0 3 14H3v-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3h4v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1v4H21a1.7 1.7 0 0 0-1.6 1Z"/></>,
     users: <><circle cx="9" cy="8" r="3"/><path d="M3.5 20v-1.5A4.5 4.5 0 0 1 8 14h2a4.5 4.5 0 0 1 4.5 4.5V20"/><path d="M16 5.5a3 3 0 0 1 0 5.5M17 14a4 4 0 0 1 3.5 4v2"/></>,
+    system: <><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h5M8 17h3"/><circle cx="16.5" cy="16.5" r="1.5"/></>,
   }
   return <svg viewBox="0 0 24 24" className="app-icon" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[name] || paths.home}</svg>
 }
@@ -63,6 +64,7 @@ export default function AppShell({ children }) {
   }, [profile])
 
   const active = (href) => href === '/' ? pathname === '/' : pathname.startsWith(href)
+  const isSuper = profile?.role === 'super_admin'
 
   if (isLogin) return children
 
@@ -71,69 +73,67 @@ export default function AppShell({ children }) {
       <aside className="app-sidebar">
         <div className="app-brand">
           <div className="app-brand-mark">MS</div>
-          <div>
-            <strong>Maya Steel</strong>
-            <span>Works Management</span>
-          </div>
+          <div><strong>Maya Steel</strong><span>Works Management</span></div>
         </div>
 
         <nav className="app-nav">
-          <p className="app-nav-label">Workspace</p>
+          <p className="app-nav-label">Business workspace</p>
           {NAV.map((item) => (
             <Link key={item.href} href={item.href} className={`app-nav-item ${active(item.href) ? 'active' : ''}`}>
-              <Icon name={item.icon} />
-              <span>{item.label}</span>
+              <Icon name={item.icon} /><span>{item.label}</span>
             </Link>
           ))}
 
-          <p className="app-nav-label app-nav-label-spaced">Management</p>
+          <p className="app-nav-label app-nav-label-spaced">Business management</p>
           {MANAGEMENT.map((item) => (
             <Link key={item.href} href={item.href} className={`app-nav-item ${active(item.href) ? 'active' : ''}`}>
-              <Icon name={item.icon} />
-              <span>{item.label}</span>
+              <Icon name={item.icon} /><span>{item.label}</span>
             </Link>
           ))}
 
-          {profile?.role === 'super_admin' && (
-            <Link href="/users" className={`app-nav-item ${active('/users') ? 'active' : ''}`}>
-              <Icon name="users" />
-              <span>Users & Roles</span>
-            </Link>
+          {isSuper && (
+            <>
+              <p className="app-nav-label app-nav-label-spaced">System administration</p>
+              <Link href="/system-control" className={`app-nav-item ${active('/system-control') ? 'active' : ''}`}>
+                <Icon name="system" /><span>System Control</span>
+              </Link>
+              <Link href="/users" className={`app-nav-item ${active('/users') ? 'active' : ''}`}>
+                <Icon name="users" /><span>Users & Access</span>
+              </Link>
+            </>
           )}
         </nav>
 
         <div className="app-profile-card" aria-label="Signed-in user">
           <ProfileAvatar userId={userId} initials={initials} className="app-avatar" />
-          <div className="min-w-0">
-            <strong>{profile?.full_name || 'Account'}</strong>
-            <span>{profile?.role || 'staff'}</span>
-          </div>
+          <div className="min-w-0"><strong>{profile?.full_name || 'Account'}</strong><span>{isSuper ? 'System Super Admin' : profile?.role || 'staff'}</span></div>
         </div>
       </aside>
 
       <div className="app-main">
         <header className="app-mobile-header">
-          <div className="app-mobile-brand">
-            <div className="app-brand-mark small">MS</div>
-            <div><strong>Maya Steel Works</strong><span>Management</span></div>
-          </div>
+          <div className="app-mobile-brand"><div className="app-brand-mark small">MS</div><div><strong>Maya Steel Works</strong><span>{isSuper ? 'System Administration' : 'Management'}</span></div></div>
           <ProfileAvatar userId={userId} initials={initials} className="app-avatar small" />
         </header>
-
         <div className="app-content">{children}</div>
       </div>
 
       <nav className="app-bottom-nav" aria-label="Primary navigation">
-        {[
+        {(isSuper ? [
+          { href: '/', label: 'Home', icon: 'home' },
+          { href: '/system-control', label: 'System', icon: 'system' },
+          { href: '/users', label: 'Users', icon: 'users' },
+          { href: '/alerts', label: 'Alerts', icon: 'alert' },
+          { href: '/settings', label: 'Settings', icon: 'settings' },
+        ] : [
           { href: '/', label: 'Home', icon: 'home' },
           { href: '/inventory', label: 'Stock', icon: 'stock' },
           { href: '/sales', label: 'Sales', icon: 'sales' },
           { href: '/cashbook', label: 'Cash', icon: 'cash' },
           { href: '/settings', label: 'Settings', icon: 'settings' },
-        ].map((item) => (
+        ]).map((item) => (
           <Link key={item.href} href={item.href} className={`app-bottom-item ${active(item.href) ? 'active' : ''}`}>
-            <Icon name={item.icon} />
-            <span>{item.label}</span>
+            <Icon name={item.icon} /><span>{item.label}</span>
           </Link>
         ))}
       </nav>
