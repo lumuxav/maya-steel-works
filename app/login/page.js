@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import ThemePicker from '../components/ThemePicker'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -48,56 +49,32 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-8 sm:px-6 flex items-center justify-center">
-      <div className="w-full max-w-5xl grid lg:grid-cols-[1.05fr_0.95fr] overflow-hidden rounded-3xl border border-slate-700/70 bg-slate-950/65 shadow-2xl shadow-black/30 backdrop-blur">
-        <section className="hidden lg:flex min-h-[620px] flex-col justify-between p-12 bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/40 border-r border-slate-700/60">
+    <main className="min-h-screen px-4 py-6 sm:px-6">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl flex-col">
+        <header className="flex items-center justify-between py-2">
           <div>
-            <div className="inline-flex items-center gap-3 rounded-full border border-amber-400/20 bg-amber-400/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-amber-300">
-              <span className="h-2 w-2 rounded-full bg-amber-400" />
-              Operations Management
-            </div>
-            <h1 className="mt-8 max-w-xl text-5xl font-black leading-[1.04] tracking-tight text-white">
-              Maya Steel Works
-            </h1>
-            <p className="mt-5 max-w-lg text-lg leading-8 text-slate-300">
-              One secure workspace for stock, production, sales, banking, discrepancies and management reporting.
-            </p>
+            <p className="text-sm font-black tracking-tight">Maya Steel Works</p>
+            <p className="text-xs text-muted">Management System</p>
           </div>
+          <ThemePicker />
+        </header>
 
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 p-5">
-              <p className="text-slate-500">Built for</p>
-              <p className="mt-1 font-bold text-white">Daily operations</p>
-            </div>
-            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 p-5">
-              <p className="text-slate-500">Access</p>
-              <p className="mt-1 font-bold text-white">Role controlled</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="flex min-h-[620px] items-center p-6 sm:p-10 lg:p-12">
-          <form onSubmit={handleSubmit} className="w-full max-w-md mx-auto">
-            <div className="lg:hidden mb-8">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-400">Maya Steel Works</p>
-              <h1 className="mt-2 text-3xl font-black text-white">Management System</h1>
+        <div className="flex flex-1 items-center justify-center py-8">
+          <div className="w-full max-w-sm">
+            <div className="mb-6">
+              <h1 className="text-2xl font-black tracking-tight">Sign in</h1>
+              <p className="mt-2 text-sm text-muted">Use your staff or management account.</p>
             </div>
 
-            <div>
-              <p className="text-sm font-semibold text-amber-400">Secure staff access</p>
-              <h2 className="mt-2 text-3xl font-black tracking-tight text-white">Welcome back</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-400">Sign in with your authorized Maya Steel Works account.</p>
-            </div>
+            <form onSubmit={handleSubmit} className="surface rounded-2xl p-5 sm:p-6">
+              {error && (
+                <div className="mb-5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-sm text-red-400" role="alert">
+                  {error}
+                </div>
+              )}
 
-            {error && (
-              <div className="mt-6 rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200" role="alert">
-                {error}
-              </div>
-            )}
-
-            <div className="mt-7 space-y-5">
               <div>
-                <label htmlFor="email" className="mb-2 block text-sm font-semibold text-slate-300">Email address</label>
+                <label htmlFor="email" className="mb-2 block text-sm font-semibold">Email address</label>
                 <input
                   id="email"
                   type="email"
@@ -105,13 +82,13 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
                   required
-                  className="w-full rounded-xl border border-slate-600 bg-slate-900/80 px-4 py-3.5 text-white placeholder:text-slate-600 transition focus:border-amber-400"
-                  placeholder="you@mayasteelworks.com"
+                  className="input-base"
+                  placeholder="name@example.com"
                 />
               </div>
 
-              <div>
-                <label htmlFor="password" className="mb-2 block text-sm font-semibold text-slate-300">Password</label>
+              <div className="mt-4">
+                <label htmlFor="password" className="mb-2 block text-sm font-semibold">Password</label>
                 <div className="relative">
                   <input
                     id="password"
@@ -120,33 +97,31 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete="current-password"
                     required
-                    className="w-full rounded-xl border border-slate-600 bg-slate-900/80 px-4 py-3.5 pr-20 text-white placeholder:text-slate-600 transition focus:border-amber-400"
+                    className="input-base pr-16"
                     placeholder="Enter password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute inset-y-0 right-3 my-auto h-fit rounded-lg px-2 py-1 text-xs font-bold text-slate-400 hover:text-white"
+                    className="absolute inset-y-0 right-2 my-auto h-fit rounded-md px-2 py-1 text-xs font-bold text-muted hover:opacity-80"
                   >
                     {showPassword ? 'Hide' : 'Show'}
                   </button>
                 </div>
               </div>
-            </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="mt-7 w-full rounded-xl bg-amber-400 px-4 py-3.5 font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {loading ? 'Signing in...' : 'Sign in to dashboard'}
-            </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary mt-5 w-full rounded-lg px-4 py-3 font-black disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading ? 'Signing in...' : 'Sign in'}
+              </button>
+            </form>
 
-            <p className="mt-6 text-center text-xs leading-5 text-slate-500">
-              Access is limited to authorized staff and management accounts.
-            </p>
-          </form>
-        </section>
+            <p className="mt-4 text-center text-xs text-muted">Authorized staff only</p>
+          </div>
+        </div>
       </div>
     </main>
   )
