@@ -1,17 +1,49 @@
 @import "tailwindcss";
 
-:root {
-  --background: #08101d;
-  --foreground: #e5e7eb;
-  --surface: #0f172a;
-  --surface-2: #111c31;
-  --line: rgba(148, 163, 184, 0.16);
+:root,
+:root[data-theme="blue"] {
+  --bg: #0b1220;
+  --panel: #111827;
+  --panel-2: #172033;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --line: #263247;
   --accent: #f59e0b;
+  --accent-strong: #d97706;
+  --success: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0a0a0a;
+  --panel: #141414;
+  --panel-2: #1d1d1d;
+  --text: #fafafa;
+  --muted: #a3a3a3;
+  --line: #2a2a2a;
+  --accent: #f59e0b;
+  --accent-strong: #d97706;
+  --success: #22c55e;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+}
+
+:root[data-theme="light"] {
+  --bg: #f5f7fa;
+  --panel: #ffffff;
+  --panel-2: #f8fafc;
+  --text: #0f172a;
+  --muted: #64748b;
+  --line: #dbe3ec;
+  --accent: #b45309;
+  --accent-strong: #92400e;
+  --success: #15803d;
+  --danger: #b91c1c;
+  --warning: #b45309;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -20,17 +52,19 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
 html {
-  background: var(--background);
+  background: var(--bg);
 }
 
 body {
-  margin: 0;
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at top right, rgba(245, 158, 11, 0.08), transparent 28rem),
-    linear-gradient(180deg, #08101d 0%, #0b1220 100%);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
@@ -41,19 +75,136 @@ textarea {
   font: inherit;
 }
 
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
 button,
 a {
   -webkit-tap-highlight-color: transparent;
 }
 
-::selection {
-  background: rgba(245, 158, 11, 0.3);
-  color: #fff;
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
-:focus-visible {
-  outline: 2px solid #f59e0b;
-  outline-offset: 2px;
+.surface {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+
+.surface-subtle {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+
+.text-muted {
+  color: var(--muted);
+}
+
+.text-accent {
+  color: var(--accent);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #111827;
+  border: 1px solid var(--accent);
+}
+
+:root[data-theme="light"] .btn-primary {
+  color: #ffffff;
+}
+
+.btn-secondary {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+.input-base {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 0.75rem 0.875rem;
+}
+
+.input-base::placeholder {
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+.theme-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.theme-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.theme-option:hover,
+.theme-option-active {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.theme-picker-compact .theme-option {
+  width: 30px;
+  height: 30px;
+  justify-content: center;
+  padding: 0;
+}
+
+.theme-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(127, 127, 127, 0.35);
+}
+
+.theme-dot-blue {
+  background: #172033;
+}
+
+.theme-dot-dark {
+  background: #0a0a0a;
+}
+
+.theme-dot-light {
+  background: #ffffff;
+}
+
+.metric-value-success {
+  color: var(--success);
+}
+
+.metric-value-danger {
+  color: var(--danger);
+}
+
+.metric-value-warning {
+  color: var(--warning);
 }
 
 ::-webkit-scrollbar {
@@ -62,15 +213,11 @@ a {
 }
 
 ::-webkit-scrollbar-track {
-  background: #08101d;
+  background: var(--bg);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--line);
   border-radius: 999px;
-  border: 2px solid #08101d;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  border: 2px solid var(--bg);
 }
