@@ -11,6 +11,7 @@ const Icon = ({ name }) => {
     home: <><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></>,
     stock: <><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></>,
     sales: <><path d="M4 18h16"/><path d="M6 15V9M12 15V5M18 15v-3"/></>,
+    service: <><path d="M14.5 5.5 18.5 9.5"/><path d="M13 7 6 14l-1 4 4-1 7-7"/><path d="M4 20h16"/></>,
     production: <><path d="M4 18h16V9l-5 3V8l-5 3V5L4 9z"/><path d="M7 18v-3h3v3"/></>,
     cash: <><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9h.01M18 15h.01"/></>,
     reports: <><path d="M5 20V10M12 20V4M19 20v-7"/></>,
@@ -25,6 +26,7 @@ const NAV = [
   { href: '/', label: 'Home', icon: 'home' },
   { href: '/inventory', label: 'Inventory', icon: 'stock' },
   { href: '/sales', label: 'Sales', icon: 'sales' },
+  { href: '/customer-work', label: 'Customer Material', icon: 'service' },
   { href: '/production', label: 'Production', icon: 'production' },
   { href: '/cashbook', label: 'Cash & Banking', icon: 'cash' },
 ]
