@@ -112,6 +112,7 @@ export default function ProfitPage() {
 
   const revenue = pSales.reduce((s, x) => s + Number(x.total_amount), 0)
   const cogs = pSales.reduce((s, x) => {
+    if (x.item_type === 'service') return s
     const uc = x.item_type === 'raw' ? (rawUnitCost[x.item_id] || 0) : (fgUnitCost[x.item_id] || 0)
     return s + Number(x.quantity) * uc
   }, 0)
@@ -123,8 +124,8 @@ export default function ProfitPage() {
 
   const byItem = {}
   pSales.forEach(s => {
-    const key = `${s.item_type}-${s.item_id}`
-    byItem[key] = byItem[key] || { qty: 0, revenue: 0 }
+    const key = s.item_type === 'service' ? `service-${s.item_label || 'Customer Material'}` : `${s.item_type}-${s.item_id}`
+    byItem[key] = byItem[key] || { qty: 0, revenue: 0, label: s.item_type === 'service' ? (s.item_label || 'Customer Material Service') : null }
     byItem[key].qty += Number(s.quantity)
     byItem[key].revenue += Number(s.total_amount)
   })
@@ -222,23 +223,23 @@ export default function ProfitPage() {
         </div>
       </div>
 
-      <h2 className="text-lg font-bold text-white mb-3">Top sellers this period</h2>
+      <h2 className="text-lg font-bold text-white mb-3">Top sellers & services this period</h2>
       <div className="overflow-x-auto bg-slate-800 rounded-xl max-w-4xl">
         <table className="w-full text-sm text-left text-slate-300">
           <thead className="bg-slate-700/50 text-slate-200 uppercase text-xs">
             <tr>
-              <th className="px-4 py-3">Item</th>
-              <th className="px-4 py-3">Qty sold</th>
+              <th className="px-4 py-3">Item / Service</th>
+              <th className="px-4 py-3">Qty</th>
               <th className="px-4 py-3">Revenue</th>
             </tr>
           </thead>
           <tbody>
             {top.length === 0 && (
-              <tr><td colSpan={3} className="px-4 py-6 text-center text-slate-500">No sales in this period.</td></tr>
+              <tr><td colSpan={3} className="px-4 py-6 text-center text-slate-500">No sales or services in this period.</td></tr>
             )}
             {top.map(([key, v]) => (
               <tr key={key} className="border-t border-slate-700">
-                <td className="px-4 py-3 font-semibold text-white">{labelMap[key] || key}</td>
+                <td className="px-4 py-3 font-semibold text-white">{v.label || labelMap[key] || key}</td>
                 <td className="px-4 py-3">{v.qty}</td>
                 <td className="px-4 py-3 font-bold text-green-400">{v.revenue.toLocaleString()}</td>
               </tr>
@@ -248,7 +249,7 @@ export default function ProfitPage() {
       </div>
 
       <p className="text-[11px] text-slate-500 mt-6 max-w-4xl">
-        * Cost of goods is estimated at each batch's average landed cost (raw) and average production cost (finished).
+        * Stock sales use estimated material cost. Customer-material service jobs have no Maya material COGS because the customer supplies the metal; labour and machine overhead remain part of business expenses.
       </p>
     </main>
   )
