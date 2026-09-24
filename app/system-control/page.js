@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
+import { adminApi } from '../../lib/adminApi'
 
 const formatDate = (value) => value ? new Date(value).toLocaleString() : 'Never'
 
@@ -15,6 +16,7 @@ export default function SystemControlPage() {
   const load = async () => {
     setLoading(true)
     setError('')
+
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return (window.location.href = '/login')
 
@@ -25,12 +27,16 @@ export default function SystemControlPage() {
       return
     }
 
-    const res = await fetch('/api/admin/system', {
-      headers: { authorization: `Bearer ${session.access_token}` }
-    })
-    const json = await res.json()
-    if (!res.ok) setError(json.error || 'Could not load system status.')
-    else setData(json)
+    const result = await adminApi('/api/admin/system')
+    if (!result.ok) {
+      setError(result.error || 'Could not load system status.')
+      if (result.status === 401) {
+        await supabase.auth.signOut()
+        setTimeout(() => { window.location.href = '/login' }, 800)
+      }
+    } else {
+      setData(result)
+    }
     setLoading(false)
   }
 
@@ -110,7 +116,7 @@ export default function SystemControlPage() {
         <div>
           <div className="mb-3 flex items-center justify-between"><h2 className="text-lg font-black">User activity</h2><Link href="/users" className="text-xs font-bold text-accent">Manage</Link></div>
           <div className="page-card overflow-hidden">
-            {users.slice().sort((a,b) => new Date(b.last_sign_in_at || 0) - new Date(a.last_sign_in_at || 0)).slice(0, 8).map((user) => (
+            {users.length === 0 ? <p className="p-6 text-center text-sm text-muted">No user data loaded.</p> : users.slice().sort((a,b) => new Date(b.last_sign_in_at || 0) - new Date(a.last_sign_in_at || 0)).slice(0, 8).map((user) => (
               <div key={user.id} className="border-b border-[var(--line)] p-4 last:border-b-0">
                 <div className="flex items-center justify-between gap-3"><p className="font-bold">{user.full_name}</p><span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${user.active === false ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>{user.active === false ? 'disabled' : user.role}</span></div>
                 <p className="mt-1 text-xs text-muted">Last sign in: {formatDate(user.last_sign_in_at)}</p>
