@@ -9,10 +9,43 @@ function RowIcon({ children }) {
   return <span className="settings-row-icon">{children}</span>
 }
 
+const compressProfilePhoto = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader()
+
+  reader.onerror = () => reject(new Error('Could not read that image.'))
+  reader.onload = () => {
+    const image = new Image()
+    image.onerror = () => reject(new Error('Could not open that image.'))
+    image.onload = () => {
+      try {
+        const size = Math.min(image.width, image.height)
+        const sx = Math.max(0, (image.width - size) / 2)
+        const sy = Math.max(0, (image.height - size) / 2)
+        const outputSize = 512
+
+        const canvas = document.createElement('canvas')
+        canvas.width = outputSize
+        canvas.height = outputSize
+        const ctx = canvas.getContext('2d')
+        if (!ctx) throw new Error('Image processing is not supported on this device.')
+
+        ctx.drawImage(image, sx, sy, size, size, 0, 0, outputSize, outputSize)
+        resolve(canvas.toDataURL('image/jpeg', 0.82))
+      } catch (error) {
+        reject(error)
+      }
+    }
+    image.src = reader.result
+  }
+
+  reader.readAsDataURL(file)
+})
+
 export default function SettingsPage() {
   const [profile, setProfile] = useState(null)
   const [userId, setUserId] = useState(null)
   const [photoMessage, setPhotoMessage] = useState('')
+  const [photoBusy, setPhotoBusy] = useState(false)
   const fileRef = useRef(null)
 
   useEffect(() => {
@@ -33,34 +66,46 @@ export default function SettingsPage() {
 
   const initials = (profile?.full_name || 'MS').split(' ').filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase()
 
-  const choosePhoto = () => fileRef.current?.click()
+  const choosePhoto = () => {
+    if (!fileRef.current || photoBusy) return
+    fileRef.current.value = ''
+    fileRef.current.click()
+  }
 
-  const savePhoto = (file) => {
+  const savePhoto = async (file) => {
     if (!file || !userId) return
+    setPhotoMessage('')
+
     if (!file.type.startsWith('image/')) {
       setPhotoMessage('Please choose an image file.')
-      return
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setPhotoMessage('Choose an image smaller than 2 MB.')
+      if (fileRef.current) fileRef.current.value = ''
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = () => {
-      try {
-        localStorage.setItem(avatarStorageKey(userId), reader.result)
-        window.dispatchEvent(new CustomEvent('maya-avatar-change', { detail: { userId } }))
-        setPhotoMessage('Profile photo updated on this device.')
-      } catch {
-        setPhotoMessage('That photo is too large for this device. Try a smaller image.')
-      }
+    if (file.size > 15 * 1024 * 1024) {
+      setPhotoMessage('That image is too large. Please choose one smaller than 15 MB.')
+      if (fileRef.current) fileRef.current.value = ''
+      return
     }
-    reader.readAsDataURL(file)
+
+    setPhotoBusy(true)
+    setPhotoMessage('Preparing photo...')
+
+    try {
+      const compressed = await compressProfilePhoto(file)
+      localStorage.setItem(avatarStorageKey(userId), compressed)
+      window.dispatchEvent(new CustomEvent('maya-avatar-change', { detail: { userId } }))
+      setPhotoMessage('Profile photo updated.')
+    } catch (error) {
+      setPhotoMessage(error?.message || 'Could not update the photo. Try another image.')
+    } finally {
+      setPhotoBusy(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
   }
 
   const removePhoto = () => {
-    if (!userId) return
+    if (!userId || photoBusy) return
     localStorage.removeItem(avatarStorageKey(userId))
     window.dispatchEvent(new CustomEvent('maya-avatar-change', { detail: { userId } }))
     if (fileRef.current) fileRef.current.value = ''
@@ -83,11 +128,13 @@ export default function SettingsPage() {
           <h2>{profile?.full_name || 'Maya Steel Works User'}</h2>
           <p>{profile?.role || 'staff'}</p>
           <div className="settings-photo-actions">
-            <button type="button" onClick={choosePhoto} className="settings-photo-button">Choose photo</button>
-            <button type="button" onClick={removePhoto} className="settings-photo-button settings-photo-button-subtle">Remove</button>
+            <button type="button" onClick={choosePhoto} disabled={photoBusy} className="settings-photo-button disabled:opacity-60">
+              {photoBusy ? 'Updating...' : 'Change photo'}
+            </button>
+            <button type="button" onClick={removePhoto} disabled={photoBusy} className="settings-photo-button settings-photo-button-subtle disabled:opacity-60">Remove</button>
           </div>
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => savePhoto(e.target.files?.[0])} />
-          {photoMessage && <small className="settings-photo-message">{photoMessage}</small>}
+          <small className="settings-photo-message">{photoMessage || 'Photos are automatically resized for your profile.'}</small>
         </div>
       </section>
 
