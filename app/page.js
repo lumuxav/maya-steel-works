@@ -88,7 +88,8 @@ export default function HomePage() {
   const ops = [
     ['/inventory', 'Inventory', 'Stock overview', '▦'],
     ['/deliveries', 'Receive Delivery', 'Incoming materials', '↓'],
-    ['/sales', 'Record Sale', 'Sales and payments', '$'],
+    ['/sales', 'Record Sale', 'Sell Maya-owned stock', '$'],
+    ['/customer-work', 'Customer Material', 'Press, cut or shape customer-owned metal', '🛠'],
     ['/production', 'Production', 'Output and usage', '⚙'],
     ['/transfers', 'Transfers', 'Move stock', '⇄'],
     ['/stocktake', 'Stocktake', 'Physical counts', '✓'],
@@ -105,8 +106,8 @@ export default function HomePage() {
           <p className="page-subtitle">Here’s what’s happening at Maya Steel Works today.</p>
 
           <div className="home-quick-row">
-            <Link href="/sales" className="home-quick-action"><span>＋</span><div><strong>New sale</strong><small>Record a customer sale</small></div></Link>
-            <Link href="/deliveries" className="home-quick-action"><span>↓</span><div><strong>Receive stock</strong><small>Add incoming materials</small></div></Link>
+            <Link href="/sales" className="home-quick-action"><span>＋</span><div><strong>New sale</strong><small>Sell Maya stock</small></div></Link>
+            <Link href="/customer-work" className="home-quick-action"><span>🛠</span><div><strong>Customer material</strong><small>Record paid processing work</small></div></Link>
           </div>
         </div>
 
@@ -115,7 +116,7 @@ export default function HomePage() {
           <div className="home-profile-name">{profile.full_name}</div>
           <div className="home-profile-role">{profile.role?.replaceAll('_', ' ')}</div>
           <div className="home-profile-stats">
-            <div><strong>{todaySales}</strong><span>Sales today</span></div>
+            <div><strong>{todaySales}</strong><span>Transactions today</span></div>
             <div><strong>{branches.length}</strong><span>Branches</span></div>
             <div><strong>{alertCount}</strong><span>Alerts</span></div>
           </div>
@@ -130,7 +131,7 @@ export default function HomePage() {
       )}
 
       <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Link href="/cashbook" className="page-card p-5"><p className="text-sm text-muted">Cash in today</p><p className="metric-value-success mt-3 text-3xl font-black">{formatMoney(cashInToday)}</p><p className="mt-2 text-xs text-muted">Collected today</p></Link>
+        <Link href="/cashbook" className="page-card p-5"><p className="text-sm text-muted">Cash in today</p><p className="metric-value-success mt-3 text-3xl font-black">{formatMoney(cashInToday)}</p><p className="mt-2 text-xs text-muted">Collected from sales & services</p></Link>
         <Link href="/sales-report?tab=debtors" className="page-card p-5"><p className="text-sm text-muted">Outstanding credit</p><p className="metric-value-danger mt-3 text-3xl font-black">{formatMoney(outstanding)}</p><p className="mt-2 text-xs text-muted">Customer balances</p></Link>
         <Link href="/cashbook" className="page-card p-5"><p className="text-sm text-muted">Pending banking</p><p className="metric-value-warning mt-3 text-3xl font-black">{bankings.length}</p><p className="mt-2 text-xs text-muted">{formatMoney(pendingAmount)} awaiting confirmation</p></Link>
         <Link href="/production-report" className="page-card p-5"><p className="text-sm text-muted">Production flags</p><p className="metric-value-danger mt-3 text-3xl font-black">{flaggedProd}</p><p className="mt-2 text-xs text-muted">Outside expected yield</p></Link>
