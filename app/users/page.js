@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { adminApi } from '../../lib/adminApi'
 
 const ROLES = ['employee', 'admin', 'super_admin']
 const prettyRole = (role) => role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Admin' : 'Employee'
@@ -19,25 +20,35 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true)
 
   const callApi = async (method, body) => {
-    const { data: { session } } = await supabase.auth.getSession()
-    const res = await fetch('/api/admin/users', {
+    return adminApi('/api/admin/users', {
       method,
-      headers: { 'Content-Type': 'application/json', authorization: `Bearer ${session.access_token}` },
-      body: body ? JSON.stringify(body) : undefined
+      body: body ? JSON.stringify(body) : undefined,
     })
-    return { ok: res.ok, ...(await res.json()) }
   }
 
   const load = async () => {
     setLoading(true)
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return (window.location.href = '/login')
+
     const { data: prof } = await supabase.from('users').select('*').eq('id', session.user.id).single()
     setProfile(prof)
-    if (prof?.role !== 'super_admin') { setLoading(false); return }
+    if (prof?.role !== 'super_admin') {
+      setLoading(false)
+      return
+    }
+
     const result = await callApi('GET')
-    if (result.ok) setUsers(result.users || [])
-    else setMessage({ type: 'error', text: result.error || 'Could not load users.' })
+    if (result.ok) {
+      setUsers(result.users || [])
+      setMessage(null)
+    } else {
+      setMessage({ type: 'error', text: result.error || 'Could not load users.' })
+      if (result.status === 401) {
+        await supabase.auth.signOut()
+        setTimeout(() => { window.location.href = '/login' }, 800)
+      }
+    }
     setLoading(false)
   }
 
@@ -45,32 +56,47 @@ export default function UsersPage() {
 
   const createUser = async (e) => {
     e.preventDefault()
-    setBusy(true); setMessage(null)
+    setBusy(true)
+    setMessage(null)
     const r = await callApi('POST', { email, password, full_name: fullName, role })
     if (r.ok) {
       setMessage({ type: 'success', text: `${fullName} created as ${prettyRole(role)}.` })
-      setFullName(''); setEmail(''); setPassword(''); setRole('employee'); await load()
-    } else setMessage({ type: 'error', text: r.error })
+      setFullName('')
+      setEmail('')
+      setPassword('')
+      setRole('employee')
+      await load()
+    } else {
+      setMessage({ type: 'error', text: r.error || 'Could not create user.' })
+    }
     setBusy(false)
   }
 
   const changeRole = async (u, newRole) => {
     const r = await callApi('PATCH', { user_id: u.id, role: newRole })
-    if (!r.ok) setMessage({ type: 'error', text: r.error })
-    else { setMessage({ type: 'success', text: `${u.full_name} is now ${prettyRole(newRole)}.` }); load() }
+    if (!r.ok) setMessage({ type: 'error', text: r.error || 'Could not change role.' })
+    else {
+      setMessage({ type: 'success', text: `${u.full_name} is now ${prettyRole(newRole)}.` })
+      load()
+    }
   }
 
   const toggleActive = async (u) => {
     const r = await callApi('PATCH', { user_id: u.id, active: u.active === false })
-    if (!r.ok) setMessage({ type: 'error', text: r.error })
-    else { setMessage({ type: 'success', text: `${u.full_name} ${u.active === false ? 'reactivated' : 'disabled'}.` }); load() }
+    if (!r.ok) setMessage({ type: 'error', text: r.error || 'Could not update access.' })
+    else {
+      setMessage({ type: 'success', text: `${u.full_name} ${u.active === false ? 'reactivated' : 'disabled'}.` })
+      load()
+    }
   }
 
   const resetPassword = async (u) => {
     const np = window.prompt(`Set a new password for ${u.full_name} (minimum 6 characters):`)
     if (!np) return
     const r = await callApi('PATCH', { user_id: u.id, password: np })
-    setMessage(r.ok ? { type: 'success', text: `Password reset for ${u.full_name}.` } : { type: 'error', text: r.error })
+    setMessage(r.ok
+      ? { type: 'success', text: `Password reset for ${u.full_name}.` }
+      : { type: 'error', text: r.error || 'Could not reset password.' })
   }
 
   if (!profile || loading) return <main className="page-wrap text-muted">Loading users...</main>
@@ -108,6 +134,7 @@ export default function UsersPage() {
       <section className="max-w-4xl">
         <div className="mb-3 flex items-center justify-between"><h2 className="text-lg font-black">Accounts</h2><span className="text-xs text-muted">Maya Branch system users</span></div>
         <div className="space-y-3">
+          {users.length === 0 && <div className="page-card p-6 text-center text-sm text-muted">No user records loaded.</div>}
           {users.map(u => (
             <article key={u.id} className={`page-card p-4 sm:p-5 ${u.active === false ? 'opacity-70' : ''}`}>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
