@@ -3,12 +3,14 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
+import ProfileAvatar from './components/ProfileAvatar'
 
 const toDayStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const formatMoney = (value) => Number(value || 0).toLocaleString()
 
 export default function HomePage() {
   const [profile, setProfile] = useState(null)
+  const [userId, setUserId] = useState(null)
   const [sales, setSales] = useState([])
   const [events, setEvents] = useState([])
   const [bankings, setBankings] = useState([])
@@ -25,6 +27,7 @@ export default function HomePage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return (window.location.href = '/login')
 
+      setUserId(session.user.id)
       const { data: prof } = await supabase.from('users').select('full_name, role').eq('id', session.user.id).single()
       setProfile(prof)
       const admin = prof?.role === 'admin' || prof?.role === 'super_admin'
@@ -107,8 +110,8 @@ export default function HomePage() {
           </div>
         </div>
 
-        <Link href="/settings" className="home-profile-card">
-          <div className="home-profile-avatar">{initials}</div>
+        <section className="home-profile-card" aria-label="User profile summary">
+          <ProfileAvatar userId={userId} initials={initials} className="home-profile-avatar" />
           <div className="home-profile-name">{profile.full_name}</div>
           <div className="home-profile-role">{profile.role?.replaceAll('_', ' ')}</div>
           <div className="home-profile-stats">
@@ -116,8 +119,8 @@ export default function HomePage() {
             <div><strong>{branches.length}</strong><span>Branches</span></div>
             <div><strong>{alertCount}</strong><span>Alerts</span></div>
           </div>
-          <span className="home-profile-link">View profile & settings →</span>
-        </Link>
+          <span className="home-profile-note">Profile changes are managed in Settings</span>
+        </section>
       </section>
 
       {isAdmin && alertCount > 0 && (
