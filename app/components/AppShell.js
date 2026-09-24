@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import ProfileAvatar from './ProfileAvatar'
 
 const Icon = ({ name }) => {
   const paths = {
@@ -37,7 +38,7 @@ const MANAGEMENT = [
 export default function AppShell({ children }) {
   const pathname = usePathname()
   const [profile, setProfile] = useState(null)
-
+  const [userId, setUserId] = useState(null)
   const isLogin = pathname === '/login'
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export default function AppShell({ children }) {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
+      if (mounted) setUserId(session.user.id)
       const { data } = await supabase.from('users').select('full_name, role').eq('id', session.user.id).single()
       if (mounted) setProfile(data || null)
     }
@@ -98,14 +100,13 @@ export default function AppShell({ children }) {
           )}
         </nav>
 
-        <Link href="/settings" className="app-profile-card">
-          <div className="app-avatar">{initials}</div>
+        <div className="app-profile-card" aria-label="Signed-in user">
+          <ProfileAvatar userId={userId} initials={initials} className="app-avatar" />
           <div className="min-w-0">
             <strong>{profile?.full_name || 'Account'}</strong>
             <span>{profile?.role || 'staff'}</span>
           </div>
-          <span className="app-chevron">›</span>
-        </Link>
+        </div>
       </aside>
 
       <div className="app-main">
@@ -114,7 +115,7 @@ export default function AppShell({ children }) {
             <div className="app-brand-mark small">MS</div>
             <div><strong>Maya Steel Works</strong><span>Management</span></div>
           </div>
-          <Link href="/settings" className="app-avatar small">{initials}</Link>
+          <ProfileAvatar userId={userId} initials={initials} className="app-avatar small" />
         </header>
 
         <div className="app-content">{children}</div>
