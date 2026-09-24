@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
-import ThemePicker from './components/ThemePicker'
 
 const toDayStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const formatMoney = (value) => Number(value || 0).toLocaleString()
@@ -68,7 +67,7 @@ export default function HomePage() {
     load()
   }, [])
 
-  if (!profile || loading) return <main className="min-h-screen grid place-items-center text-sm text-muted">Loading dashboard...</main>
+  if (!profile || loading) return <main className="page-wrap text-muted">Loading dashboard...</main>
 
   const todayStr = toDayStr(new Date())
   const payBySale = {}
@@ -93,100 +92,67 @@ export default function HomePage() {
   ]
 
   return (
-    <main className="app-shell flex">
-      <aside className="desktop-sidebar fixed inset-y-0 left-0 p-5">
-        <div className="flex items-center gap-3 px-1">
-          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-[var(--accent)] text-sm font-black text-white">MS</div>
-          <div>
-            <p className="font-black leading-tight">Maya Steel Works</p>
-            <p className="text-xs text-muted">Management</p>
-          </div>
+    <main className="page-wrap">
+      <div className="page-header-row">
+        <div>
+          <p className="page-eyebrow">Overview</p>
+          <h1 className="page-title">Good day, {profile.full_name}</h1>
+          <p className="page-subtitle">Here’s what’s happening at Maya Steel Works.</p>
         </div>
+      </div>
 
-        <nav className="mt-8 space-y-1">
-          <Link href="/" className="sidebar-link sidebar-link-active"><span className="nav-icon">⌂</span>Dashboard</Link>
-          <Link href="/inventory" className="sidebar-link"><span className="nav-icon">▦</span>Inventory</Link>
-          <Link href="/sales" className="sidebar-link"><span className="nav-icon">$</span>Sales</Link>
-          <Link href="/production" className="sidebar-link"><span className="nav-icon">⚙</span>Production</Link>
-          <Link href="/cashbook" className="sidebar-link"><span className="nav-icon">¤</span>Cash Book</Link>
-          {isAdmin && <Link href="/alerts" className="sidebar-link"><span className="nav-icon">!</span>Alerts</Link>}
-        </nav>
+      {isAdmin && alertCount > 0 && (
+        <Link href="/alerts" className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-red-400/25 bg-red-400/10 px-4 py-3.5">
+          <div><p className="font-bold text-red-500">{alertCount} items need attention</p><p className="mt-1 text-xs text-muted">Banking, production or stock differences</p></div><span className="text-muted">→</span>
+        </Link>
+      )}
 
-        <div className="absolute bottom-5 left-5 right-5">
-          <ThemePicker />
-          <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login' }} className="btn-secondary mt-3 w-full rounded-xl px-3 py-2.5 text-sm font-bold">Sign out</button>
-        </div>
-      </aside>
-
-      <section className="mobile-safe-bottom min-w-0 flex-1 lg:ml-[248px]">
-        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
-          <header className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm text-muted">Good day,</p>
-              <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{profile.full_name}</h1>
-              <p className="mt-1 text-sm text-muted">Here’s what’s happening at Maya Steel Works.</p>
-            </div>
-            <div className="lg:hidden"><ThemePicker compact /></div>
-          </header>
-
-          {isAdmin && alertCount > 0 && (
-            <Link href="/alerts" className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-red-400/25 bg-red-400/10 px-4 py-3.5">
-              <div><p className="font-bold text-red-400">{alertCount} items need attention</p><p className="mt-1 text-xs text-muted">Banking, production or stock differences</p></div><span className="text-muted">→</span>
-            </Link>
-          )}
-
-          <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Link href="/cashbook" className="soft-card p-5"><p className="text-sm text-muted">Cash in today</p><p className="metric-value-success mt-3 text-3xl font-black">{formatMoney(cashInToday)}</p><p className="mt-2 text-xs text-muted">Collected today</p></Link>
-            <Link href="/sales-report?tab=debtors" className="soft-card p-5"><p className="text-sm text-muted">Outstanding credit</p><p className="metric-value-danger mt-3 text-3xl font-black">{formatMoney(outstanding)}</p><p className="mt-2 text-xs text-muted">Customer balances</p></Link>
-            <Link href="/cashbook" className="soft-card p-5"><p className="text-sm text-muted">Pending banking</p><p className="metric-value-warning mt-3 text-3xl font-black">{bankings.length}</p><p className="mt-2 text-xs text-muted">{formatMoney(pendingAmount)} awaiting confirmation</p></Link>
-            <Link href="/production-report" className="soft-card p-5"><p className="text-sm text-muted">Production flags</p><p className="metric-value-danger mt-3 text-3xl font-black">{flaggedProd}</p><p className="mt-2 text-xs text-muted">Outside expected yield</p></Link>
-          </section>
-
-          <section className="mt-8 grid gap-7 xl:grid-cols-[1.5fr_.8fr]">
-            <div>
-              <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-black">Operations</h2><span className="text-xs text-muted">Quick access</span></div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {ops.map(([href, title, desc, icon]) => (
-                  <Link key={href} href={href} className="module-card">
-                    <div className="nav-icon">{icon}</div>
-                    <p className="mt-4 font-black">{title}</p>
-                    <p className="mt-1 text-sm text-muted">{desc}</p>
-                  </Link>
-                ))}
-              </div>
-
-              {isAdmin && (
-                <div className="mt-8">
-                  <h2 className="mb-4 text-lg font-black">Management</h2>
-                  <div className="soft-card overflow-hidden">
-                    {[
-                      ['/alerts','Activity & Alerts'], ['/production-report','Production Report'], ['/profit','Profit Dashboard'], ['/records','Records & Discrepancies'], ['/corrections','Corrections'], ...(profile.role === 'super_admin' ? [['/users','Users & Roles']] : [])
-                    ].map(([href, title], i, arr) => (
-                      <Link key={href} href={href} className="flex items-center justify-between px-5 py-4" style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--line)' : '0' }}><span className="font-bold">{title}</span><span className="text-muted">→</span></Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <aside>
-              <h2 className="mb-4 text-lg font-black">Stock by branch</h2>
-              <div className="soft-card p-4">
-                {branches.length === 0 ? <p className="text-sm text-muted">No stock recorded.</p> : branches.map((branch) => (
-                  <div key={branch} className="mb-3 rounded-2xl bg-[var(--panel-2)] p-4 last:mb-0">
-                    <div className="flex items-center justify-between"><p className="font-black">{branch}</p><span className="text-xs text-muted">Live</span></div>
-                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><p className="text-muted">Raw</p><p className="mt-1 font-black">{rawBranches[branch] || 0}</p></div><div><p className="text-muted">Finished</p><p className="mt-1 font-black">{fgBranches[branch] || 0}</p></div></div>
-                  </div>
-                ))}
-              </div>
-            </aside>
-          </section>
-        </div>
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Link href="/cashbook" className="page-card p-5"><p className="text-sm text-muted">Cash in today</p><p className="metric-value-success mt-3 text-3xl font-black">{formatMoney(cashInToday)}</p><p className="mt-2 text-xs text-muted">Collected today</p></Link>
+        <Link href="/sales-report?tab=debtors" className="page-card p-5"><p className="text-sm text-muted">Outstanding credit</p><p className="metric-value-danger mt-3 text-3xl font-black">{formatMoney(outstanding)}</p><p className="mt-2 text-xs text-muted">Customer balances</p></Link>
+        <Link href="/cashbook" className="page-card p-5"><p className="text-sm text-muted">Pending banking</p><p className="metric-value-warning mt-3 text-3xl font-black">{bankings.length}</p><p className="mt-2 text-xs text-muted">{formatMoney(pendingAmount)} awaiting confirmation</p></Link>
+        <Link href="/production-report" className="page-card p-5"><p className="text-sm text-muted">Production flags</p><p className="metric-value-danger mt-3 text-3xl font-black">{flaggedProd}</p><p className="mt-2 text-xs text-muted">Outside expected yield</p></Link>
       </section>
 
-      <nav className="mobile-bottom-nav">
-        <Link href="/">Home</Link><Link href="/inventory">Inventory</Link><Link href="/sales">Sales</Link><Link href="/cashbook">Cash</Link>
-      </nav>
+      <section className="mt-8 grid gap-7 xl:grid-cols-[1.5fr_.8fr]">
+        <div>
+          <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-black">Operations</h2><span className="text-xs text-muted">Quick access</span></div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {ops.map(([href, title, desc, icon]) => (
+              <Link key={href} href={href} className="page-card p-4 transition hover:-translate-y-0.5">
+                <div className="settings-row-icon">{icon}</div>
+                <p className="mt-4 font-black">{title}</p>
+                <p className="mt-1 text-sm text-muted">{desc}</p>
+              </Link>
+            ))}
+          </div>
+
+          {isAdmin && (
+            <div className="mt-8">
+              <h2 className="mb-4 text-lg font-black">Management</h2>
+              <div className="settings-list">
+                {[
+                  ['/alerts','Activity & Alerts'], ['/production-report','Production Report'], ['/profit','Profit Dashboard'], ['/records','Records & Discrepancies'], ['/corrections','Corrections'], ...(profile.role === 'super_admin' ? [['/users','Users & Roles']] : [])
+                ].map(([href, title]) => (
+                  <Link key={href} href={href} className="settings-row"><span className="settings-row-icon">›</span><div><strong>{title}</strong></div><span className="settings-chevron">›</span></Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <aside>
+          <h2 className="mb-4 text-lg font-black">Stock by branch</h2>
+          <div className="page-card p-4">
+            {branches.length === 0 ? <p className="text-sm text-muted">No stock recorded.</p> : branches.map((branch) => (
+              <div key={branch} className="mb-3 rounded-2xl bg-[var(--panel-2)] p-4 last:mb-0">
+                <div className="flex items-center justify-between"><p className="font-black">{branch}</p><span className="text-xs text-muted">Live</span></div>
+                <div className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><p className="text-muted">Raw</p><p className="mt-1 font-black">{rawBranches[branch] || 0}</p></div><div><p className="text-muted">Finished</p><p className="mt-1 font-black">{fgBranches[branch] || 0}</p></div></div>
+              </div>
+            ))}
+          </div>
+        </aside>
+      </section>
     </main>
   )
 }
