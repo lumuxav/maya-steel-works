@@ -79,6 +79,8 @@ export default function HomePage() {
   const flaggedProd = runs.filter((r) => Number(r.boss_expected_yield) !== Number(r.actual_yield)).length
   const alertCount = bankings.length + flaggedProd + counts.length
   const branches = Array.from(new Set([...Object.keys(rawBranches), ...Object.keys(fgBranches)]))
+  const todaySales = sales.filter((s) => toDayStr(new Date(s.created_at)) === todayStr).length
+  const initials = (profile.full_name || 'MS').split(' ').filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase()
 
   const ops = [
     ['/inventory', 'Inventory', 'Stock overview', '▦'],
@@ -93,21 +95,38 @@ export default function HomePage() {
 
   return (
     <main className="page-wrap">
-      <div className="page-header-row">
-        <div>
-          <p className="page-eyebrow">Overview</p>
-          <h1 className="page-title">Good day, {profile.full_name}</h1>
-          <p className="page-subtitle">Here’s what’s happening at Maya Steel Works.</p>
+      <section className="home-hero-grid">
+        <div className="home-welcome-card">
+          <p className="page-eyebrow">Home</p>
+          <h1 className="home-greeting">Hi {profile.full_name?.split(' ')[0] || 'there'}!</h1>
+          <p className="page-subtitle">Here’s what’s happening at Maya Steel Works today.</p>
+
+          <div className="home-quick-row">
+            <Link href="/sales" className="home-quick-action"><span>＋</span><div><strong>New sale</strong><small>Record a customer sale</small></div></Link>
+            <Link href="/deliveries" className="home-quick-action"><span>↓</span><div><strong>Receive stock</strong><small>Add incoming materials</small></div></Link>
+          </div>
         </div>
-      </div>
+
+        <Link href="/settings" className="home-profile-card">
+          <div className="home-profile-avatar">{initials}</div>
+          <div className="home-profile-name">{profile.full_name}</div>
+          <div className="home-profile-role">{profile.role?.replaceAll('_', ' ')}</div>
+          <div className="home-profile-stats">
+            <div><strong>{todaySales}</strong><span>Sales today</span></div>
+            <div><strong>{branches.length}</strong><span>Branches</span></div>
+            <div><strong>{alertCount}</strong><span>Alerts</span></div>
+          </div>
+          <span className="home-profile-link">View profile & settings →</span>
+        </Link>
+      </section>
 
       {isAdmin && alertCount > 0 && (
-        <Link href="/alerts" className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-red-400/25 bg-red-400/10 px-4 py-3.5">
+        <Link href="/alerts" className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-red-400/25 bg-red-400/10 px-4 py-3.5">
           <div><p className="font-bold text-red-500">{alertCount} items need attention</p><p className="mt-1 text-xs text-muted">Banking, production or stock differences</p></div><span className="text-muted">→</span>
         </Link>
       )}
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Link href="/cashbook" className="page-card p-5"><p className="text-sm text-muted">Cash in today</p><p className="metric-value-success mt-3 text-3xl font-black">{formatMoney(cashInToday)}</p><p className="mt-2 text-xs text-muted">Collected today</p></Link>
         <Link href="/sales-report?tab=debtors" className="page-card p-5"><p className="text-sm text-muted">Outstanding credit</p><p className="metric-value-danger mt-3 text-3xl font-black">{formatMoney(outstanding)}</p><p className="mt-2 text-xs text-muted">Customer balances</p></Link>
         <Link href="/cashbook" className="page-card p-5"><p className="text-sm text-muted">Pending banking</p><p className="metric-value-warning mt-3 text-3xl font-black">{bankings.length}</p><p className="mt-2 text-xs text-muted">{formatMoney(pendingAmount)} awaiting confirmation</p></Link>
