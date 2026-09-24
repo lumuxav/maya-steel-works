@@ -64,6 +64,26 @@ export default function CustomerWorkPage() {
     load()
   }, [])
 
+  const getLedgerAnchorId = async () => {
+    const { data: finished, error: finishedError } = await supabase
+      .from('finished_goods')
+      .select('id')
+      .order('id', { ascending: true })
+      .limit(1)
+
+    if (!finishedError && finished?.[0]?.id) return finished[0].id
+
+    const source = isAdmin ? 'raw_materials_admin_view' : 'raw_materials_employee_view'
+    const { data: raw, error: rawError } = await supabase
+      .from(source)
+      .select('id')
+      .order('id', { ascending: true })
+      .limit(1)
+
+    if (!rawError && raw?.[0]?.id) return raw[0].id
+    return null
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
@@ -84,11 +104,23 @@ export default function CustomerWorkPage() {
     }
 
     const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      window.location.href = '/login'
+      return
+    }
+
+    const ledgerItemId = await getLedgerAnchorId()
+    if (!ledgerItemId) {
+      setMessage({ type: 'error', text: 'The service ledger could not find an inventory item ID to attach this record to. Add at least one stock item, then try again.' })
+      setSaving(false)
+      return
+    }
+
     const label = `Customer Material - ${service}${details.trim() ? ` - ${details.trim()}` : ''}`
 
     const { error } = await supabase.from('sales').insert({
       item_type: 'service',
-      item_id: null,
+      item_id: ledgerItemId,
       quantity: qty,
       unit_price: price,
       selling_price: price,
@@ -123,11 +155,11 @@ export default function CustomerWorkPage() {
     <main className="page-wrap">
       <div className="page-header-row">
         <div>
-          <p className="page-eyebrow">Sales & Services</p>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-500">Sales & Services</p>
           <h1 className="page-title">Customer Material</h1>
           <p className="page-subtitle">Record work done on material supplied by the customer. This does not change Maya stock.</p>
         </div>
-        <Link href="/sales" className="btn-secondary rounded-xl px-3 py-2 text-sm font-bold">Stock sales</Link>
+        <Link href="/sales" className="rounded-xl border border-amber-500/40 px-3 py-2 text-sm font-bold text-amber-500 transition hover:bg-amber-500/10">Stock sales</Link>
       </div>
 
       {message && (
@@ -136,45 +168,45 @@ export default function CustomerWorkPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="page-card max-w-2xl p-4 sm:p-6 space-y-5">
-        <div className="rounded-2xl bg-[var(--accent-2)] p-4 text-sm">
-          <p className="font-black text-accent">Customer owns the metal</p>
+      <form onSubmit={handleSubmit} className="page-card max-w-2xl space-y-5 p-4 sm:p-6">
+        <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm">
+          <p className="font-black text-amber-500">Customer owns the metal</p>
           <p className="mt-1 text-xs text-muted">Only labour/service revenue is recorded. Inventory is left untouched.</p>
         </div>
 
         <div>
           <label className="mb-2 block text-sm font-bold">Service performed *</label>
-          <select value={service} onChange={(e) => setService(e.target.value)} className="input-base">
+          <select value={service} onChange={(e) => setService(e.target.value)} className="input-base focus:border-amber-500">
             {SERVICES.map((item) => <option key={item}>{item}</option>)}
           </select>
         </div>
 
         <div>
           <label className="mb-2 block text-sm font-bold">Measurements / job details</label>
-          <input value={details} onChange={(e) => setDetails(e.target.value)} className="input-base" placeholder={'e.g. 1.2mm × 8ft, cut into 3" strips'} />
+          <input value={details} onChange={(e) => setDetails(e.target.value)} className="input-base focus:border-amber-500" placeholder={'e.g. 1.2mm × 8ft, cut into 3" strips'} />
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <div>
             <label className="mb-2 block text-sm font-bold">Plates / pieces worked *</label>
-            <input type="number" min="1" step="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} required className="input-base" placeholder="e.g. 6" />
+            <input type="number" min="1" step="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} required className="input-base focus:border-amber-500" placeholder="e.g. 6" />
           </div>
           <div>
             <label className="mb-2 block text-sm font-bold">Charge per plate / piece *</label>
-            <input type="number" min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} required className="input-base" placeholder="e.g. 5000" />
+            <input type="number" min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} required className="input-base focus:border-amber-500" placeholder="e.g. 5000" />
           </div>
         </div>
 
         <div>
           <label className="mb-2 block text-sm font-bold">Customer name</label>
-          <input value={customer} onChange={(e) => setCustomer(e.target.value)} className="input-base" placeholder="Blank = walk-in" />
+          <input value={customer} onChange={(e) => setCustomer(e.target.value)} className="input-base focus:border-amber-500" placeholder="Blank = walk-in" />
         </div>
 
         <div>
           <label className="mb-2 block text-sm font-bold">Payment status *</label>
           <div className="grid grid-cols-3 gap-2">
             {['paid', 'partial', 'credit'].map((item) => (
-              <button key={item} type="button" onClick={() => setStatus(item)} className={`rounded-xl border px-2 py-3 text-sm font-bold capitalize ${status === item ? 'bg-[var(--accent)] text-white border-[var(--accent)]' : 'btn-secondary'}`}>
+              <button key={item} type="button" onClick={() => setStatus(item)} className={`rounded-xl border px-2 py-3 text-sm font-bold capitalize transition ${status === item ? 'border-amber-500 bg-amber-500 text-slate-950' : 'btn-secondary'}`}>
                 {item}
               </button>
             ))}
@@ -184,19 +216,19 @@ export default function CustomerWorkPage() {
         {status === 'partial' && (
           <div>
             <label className="mb-2 block text-sm font-bold">Amount paid now *</label>
-            <input type="number" min="0" step="0.01" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} required className="input-base" placeholder="UGX" />
+            <input type="number" min="0" step="0.01" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} required className="input-base focus:border-amber-500" placeholder="UGX" />
           </div>
         )}
 
         {total > 0 && (
-          <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel-2)] p-4">
-            <div className="flex items-center justify-between gap-3"><span className="text-sm text-muted">Service total</span><strong>{total.toLocaleString()} UGX</strong></div>
+          <div className="rounded-2xl border border-amber-500/20 bg-[var(--panel-2)] p-4">
+            <div className="flex items-center justify-between gap-3"><span className="text-sm text-muted">Service total</span><strong className="text-amber-500">{total.toLocaleString()} UGX</strong></div>
             <p className="mt-1 text-xs text-muted">{Number(quantity || 0).toLocaleString()} × {Number(rate || 0).toLocaleString()} UGX per plate/piece</p>
             {status !== 'paid' && <p className="mt-2 text-xs text-muted">Paid now: {paidNow.toLocaleString()} UGX · Balance: {(total - paidNow).toLocaleString()} UGX</p>}
           </div>
         )}
 
-        <button type="submit" disabled={saving} className="btn-primary w-full rounded-xl px-4 py-3.5 font-black disabled:opacity-50">
+        <button type="submit" disabled={saving} className="w-full rounded-xl bg-amber-500 px-4 py-3.5 font-black text-slate-950 transition hover:bg-amber-400 disabled:opacity-50">
           {saving ? 'Recording...' : 'Record Customer Work'}
         </button>
       </form>
@@ -213,7 +245,7 @@ export default function CustomerWorkPage() {
               </div>
               <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-[var(--panel-2)] p-3 text-xs">
                 <div><span className="text-muted">Rate</span><strong className="mt-1 block">{Number(job.unit_price).toLocaleString()}</strong></div>
-                <div><span className="text-muted">Total</span><strong className="mt-1 block">{Number(job.total_amount).toLocaleString()}</strong></div>
+                <div><span className="text-muted">Total</span><strong className="mt-1 block text-amber-500">{Number(job.total_amount).toLocaleString()}</strong></div>
                 <div><span className="text-muted">Paid</span><strong className="mt-1 block">{Number(job.amount_paid).toLocaleString()}</strong></div>
               </div>
               <p className="mt-2 text-[10px] text-muted">{new Date(job.created_at).toLocaleTimeString()}</p>
