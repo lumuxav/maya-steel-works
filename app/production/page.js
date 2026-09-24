@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 
 export default function ProductionPage() {
@@ -44,10 +43,7 @@ export default function ProductionPage() {
   useEffect(() => {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        window.location.href = '/login'
-        return
-      }
+      if (!session) { window.location.href = '/login'; return }
       const { data: prof } = await supabase.from('users').select('full_name, role').eq('id', session.user.id).single()
       setProfile(prof)
       const { data: recs } = await supabase.from('production_recipes').select('*').order('created_at', { ascending: false })
@@ -63,165 +59,101 @@ export default function ProductionPage() {
     e.preventDefault()
     setSaving(true)
     setMessage(null)
-
-    if (!recipe || !batch) {
-      setMessage({ type: 'error', text: 'Choose a standard and a stock batch.' })
-      setSaving(false)
-      return
-    }
+    if (!recipe || !batch) { setMessage({ type: 'error', text: 'Choose a production standard and stock batch.' }); setSaving(false); return }
     const u = Number(units)
     const p = Number(produced)
-    if (!u || !p) {
-      setMessage({ type: 'error', text: 'Fill in units used and pieces produced.' })
-      setSaving(false)
-      return
-    }
-    if (u > batch.quantity) {
-      setMessage({ type: 'error', text: `Only ${batch.quantity} ${batch.unit} available in that batch.` })
-      setSaving(false)
-      return
-    }
+    if (!u || !p) { setMessage({ type: 'error', text: 'Enter raw units used and pieces produced.' }); setSaving(false); return }
+    if (u > batch.quantity) { setMessage({ type: 'error', text: `Only ${batch.quantity} ${batch.unit} available in this batch.` }); setSaving(false); return }
 
     let fg = null
     const { data: existing } = await supabase.from('finished_goods').select('*').ilike('name', recipe.finished_name).limit(1)
-    if (existing && existing.length > 0) {
-      fg = existing[0]
-    } else {
-      const { data: created, error: fgErr } = await supabase
-        .from('finished_goods')
-        .insert({ name: recipe.finished_name, gauge: recipe.raw_gauge, size_dimensions: recipe.finished_size, unit: 'pieces', quantity: 0, selling_price: 0 })
-        .select().single()
+    if (existing && existing.length > 0) fg = existing[0]
+    else {
+      const { data: created, error: fgErr } = await supabase.from('finished_goods').insert({ name: recipe.finished_name, gauge: recipe.raw_gauge, size_dimensions: recipe.finished_size, unit: 'pieces', quantity: 0, selling_price: 0 }).select().single()
       if (fgErr) { setMessage({ type: 'error', text: fgErr.message }); setSaving(false); return }
       fg = created
     }
 
     const exp = Number(recipe.yield_per_raw_unit) * u
-
-    const { error: logErr } = await supabase.from('production_log').insert({
-      finished_good_id: fg.id,
-      boss_expected_yield: exp,
-      actual_yield: p,
-      raw_material_id: batch.id,
-      fraction_of_material_used: u / batch.quantity,
-      raw_units_used: u,
-      scrap_generated: Number(scrap) || 0,
-      employee_name: profile?.full_name
-    })
+    const { error: logErr } = await supabase.from('production_log').insert({ finished_good_id: fg.id, boss_expected_yield: exp, actual_yield: p, raw_material_id: batch.id, fraction_of_material_used: u / batch.quantity, raw_units_used: u, scrap_generated: Number(scrap) || 0, employee_name: profile?.full_name })
     if (logErr) { setMessage({ type: 'error', text: logErr.message }); setSaving(false); return }
 
-    const { error: d1 } = await supabase.rpc('deduct_stock', {
-      p_item_type: 'raw', p_item_id: batch.id, p_quantity: u,
-      p_movement_type: 'used_in_production', p_notes: `Production: ${recipe.finished_name}`
-    })
+    const { error: d1 } = await supabase.rpc('deduct_stock', { p_item_type: 'raw', p_item_id: batch.id, p_quantity: u, p_movement_type: 'used_in_production', p_notes: `Production: ${recipe.finished_name}` })
     if (d1) { setMessage({ type: 'error', text: d1.message }); setSaving(false); return }
-
-    const { error: a1 } = await supabase.rpc('add_stock', {
-      p_item_type: 'finished', p_item_id: fg.id, p_quantity: p,
-      p_movement_type: 'produced', p_notes: `Produced by ${profile?.full_name}`
-    })
+    const { error: a1 } = await supabase.rpc('add_stock', { p_item_type: 'finished', p_item_id: fg.id, p_quantity: p, p_movement_type: 'produced', p_notes: `Produced by ${profile?.full_name}` })
     if (a1) { setMessage({ type: 'error', text: a1.message }); setSaving(false); return }
 
-    setMessage({ type: 'success', text: `Production recorded: ${p} pieces of ${recipe.finished_name} (expected ${exp}).` })
+    setMessage({ type: 'success', text: `Production recorded: ${p} pieces of ${recipe.finished_name}.` })
     setUnits(''); setProduced(''); setScrap('')
     loadToday()
     setSaving(false)
   }
 
-  if (!profile) return <main className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400">Loading...</main>
+  if (!profile) return <main className="page-wrap text-muted">Loading production...</main>
 
   return (
-    <main className="min-h-screen bg-slate-900 p-4 md:p-6">
-      <header className="flex items-center justify-between mb-6">
+    <main className="page-wrap">
+      <div className="page-header-row">
         <div>
-          <h1 className="text-2xl font-black text-white">🏭 Record Production</h1>
-          <p className="text-slate-400 text-sm">Pick the boss's standard, count what you used and made — that's all</p>
+          <p className="page-eyebrow">Operations</p>
+          <h1 className="page-title">Production</h1>
+          <p className="page-subtitle">Record materials used, output made and production variance.</p>
         </div>
-        <Link href="/" className="text-sm text-slate-300 border border-slate-600 rounded-lg px-3 py-1.5 hover:bg-slate-800">← Back</Link>
-      </header>
+      </div>
 
-      {message && (
-        <div className={`mb-4 max-w-2xl rounded-lg p-3 text-sm ${message.type === 'success' ? 'bg-green-900/50 text-green-200 border border-green-700' : 'bg-red-900/50 text-red-200 border border-red-700'}`}>
-          {message.text}
-        </div>
-      )}
+      {message && <div className={`mb-5 max-w-3xl rounded-2xl border px-4 py-3 text-sm ${message.type === 'success' ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-500' : 'border-red-500/25 bg-red-500/10 text-red-500'}`}>{message.text}</div>}
 
-      <form onSubmit={handleSubmit} className="bg-slate-800 rounded-xl p-6 space-y-5 max-w-2xl mb-10">
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">1. Choose Production Standard *</label>
-          <select value={recipeId} onChange={(e) => { setRecipeId(e.target.value); const rec = recipes.find(r => r.id === Number(e.target.value)); if (rec) loadBatches(rec) }} required
-            className="w-full rounded-lg bg-slate-700 border border-slate-600 text-white px-3 py-2">
-            <option value="">-- Select standard --</option>
-            {recipes.map(r => (
-              <option key={r.id} value={r.id}>
-                {r.raw_category} {r.raw_gauge} → {r.finished_name} {r.finished_size || ''} ({r.yield_per_raw_unit} per {r.raw_unit === 'kg' ? 'kg' : 'piece'})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">2. Stock batch to cut from *</label>
-          <select value={batchId} onChange={(e) => setBatchId(e.target.value)} required
-            className="w-full rounded-lg bg-slate-700 border border-slate-600 text-white px-3 py-2">
-            <option value="">-- Select batch --</option>
-            {batches.map(b => (
-              <option key={b.id} value={b.id}>Received {new Date(b.created_at).toLocaleDateString()} — {b.quantity} {b.unit} available</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">3. Raw units used *</label>
-            <input type="number" step="0.001" value={units} onChange={(e) => setUnits(e.target.value)} required
-              className="w-full rounded-lg bg-slate-700 border border-slate-600 text-white px-3 py-2" placeholder="e.g. 2.5 (plates)" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">4. Actual pieces produced *</label>
-            <input type="number" step="0.01" value={produced} onChange={(e) => setProduced(e.target.value)} required
-              className="w-full rounded-lg bg-slate-700 border border-slate-600 text-white px-3 py-2" placeholder="e.g. 53" />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">Scrap (kg) — optional</label>
-          <input type="number" step="0.01" value={scrap} onChange={(e) => setScrap(e.target.value)}
-            className="w-full rounded-lg bg-slate-700 border border-slate-600 text-white px-3 py-2" placeholder="e.g. 2.5" />
-        </div>
-
-        {expected !== null && (
-          <p className="text-xs text-slate-400">Boss's standard expects <span className="font-bold text-amber-400">{expected}</span> pieces from {units} unit(s).</p>
-        )}
-
-        <button type="submit" disabled={saving}
-          className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-900 font-bold text-sm py-3 rounded-lg">
-          {saving ? 'Recording...' : 'Record Production'}
-        </button>
-      </form>
-
-      <h2 className="text-lg font-bold text-white mb-3">🏭 Today's Production</h2>
-      <div className="space-y-3 max-w-2xl">
-        {todayRuns.length === 0 && (
-          <div className="bg-slate-800 rounded-xl p-6 text-center text-slate-500">No production recorded yet today.</div>
-        )}
-        {todayRuns.map(r => {
-          const fg = fgMap[r.finished_good_id]
-          const diff = Number(r.actual_yield) - Number(r.boss_expected_yield)
-          return (
-            <div key={r.id} className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="font-bold text-white">{fg ? `${fg.name} ${fg.size_dimensions || ''}` : `#${r.finished_good_id}`}</p>
-                <span className={`text-xs font-bold px-2 py-1 rounded ${diff === 0 ? 'bg-green-500/20 text-green-300' : diff < 0 ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300'}`}>
-                  {diff === 0 ? 'ON STANDARD' : diff < 0 ? `LOSS ${diff}` : `OVER +${diff}`}
-                </span>
-              </div>
-              <p className="text-xs text-slate-400">
-                {r.employee_name || 'staff'} · used {r.raw_units_used} units · expected {r.boss_expected_yield} · made <span className="font-bold text-white">{r.actual_yield}</span> · scrap {r.scrap_generated || 0} kg
-              </p>
-              <p className="text-[10px] text-slate-500 mt-1">{new Date(r.created_at).toLocaleTimeString()}</p>
+      <div className="grid gap-6 xl:grid-cols-[1.05fr_.95fr]">
+        <form onSubmit={handleSubmit} className="page-card p-5 sm:p-6">
+          <h2 className="page-section-title">New production run</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-bold">Production standard</label>
+              <select value={recipeId} onChange={(e) => { setRecipeId(e.target.value); const rec = recipes.find(r => r.id === Number(e.target.value)); if (rec) loadBatches(rec) }} required className="input-base">
+                <option value="">Select standard</option>
+                {recipes.map(r => <option key={r.id} value={r.id}>{r.raw_category} {r.raw_gauge} → {r.finished_name} {r.finished_size || ''}</option>)}
+              </select>
             </div>
-          )
-        })}
+            <div>
+              <label className="mb-2 block text-sm font-bold">Stock batch</label>
+              <select value={batchId} onChange={(e) => setBatchId(e.target.value)} required className="input-base">
+                <option value="">Select batch</option>
+                {batches.map(b => <option key={b.id} value={b.id}>{new Date(b.created_at).toLocaleDateString()} · {b.quantity} {b.unit} available</option>)}
+              </select>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div><label className="mb-2 block text-sm font-bold">Raw units used</label><input type="number" step="0.001" value={units} onChange={(e) => setUnits(e.target.value)} required className="input-base" placeholder="0" /></div>
+              <div><label className="mb-2 block text-sm font-bold">Pieces produced</label><input type="number" step="0.01" value={produced} onChange={(e) => setProduced(e.target.value)} required className="input-base" placeholder="0" /></div>
+            </div>
+            <div><label className="mb-2 block text-sm font-bold">Scrap (kg)</label><input type="number" step="0.01" value={scrap} onChange={(e) => setScrap(e.target.value)} className="input-base" placeholder="Optional" /></div>
+            {expected !== null && <div className="rounded-2xl bg-[var(--accent-2)] px-4 py-3 text-sm"><span className="text-muted">Expected output</span><strong className="ml-2 text-accent">{expected} pieces</strong></div>}
+            <button type="submit" disabled={saving} className="btn-primary w-full rounded-2xl px-4 py-3.5 font-black disabled:opacity-50">{saving ? 'Recording...' : 'Record production'}</button>
+          </div>
+        </form>
+
+        <section>
+          <div className="mb-3 flex items-center justify-between"><h2 className="page-section-title mb-0">Today</h2><span className="text-xs text-muted">{todayRuns.length} run{todayRuns.length === 1 ? '' : 's'}</span></div>
+          <div className="space-y-3">
+            {todayRuns.length === 0 && <div className="page-card p-6 text-center text-sm text-muted">No production recorded today.</div>}
+            {todayRuns.map(r => {
+              const fg = fgMap[r.finished_good_id]
+              const diff = Number(r.actual_yield) - Number(r.boss_expected_yield)
+              return (
+                <article key={r.id} className="page-card p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div><h3 className="font-black">{fg ? `${fg.name} ${fg.size_dimensions || ''}` : `Item #${r.finished_good_id}`}</h3><p className="mt-1 text-xs text-muted">{r.employee_name || 'Staff'} · {new Date(r.created_at).toLocaleTimeString()}</p></div>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${diff === 0 ? 'bg-emerald-500/10 text-emerald-500' : diff < 0 ? 'bg-red-500/10 text-red-500' : 'bg-amber-500/10 text-amber-500'}`}>{diff === 0 ? 'ON STANDARD' : diff < 0 ? `${diff} BELOW` : `+${diff} ABOVE`}</span>
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                    <div className="surface-subtle rounded-xl p-3"><p className="text-[10px] text-muted">USED</p><p className="mt-1 font-black">{r.raw_units_used}</p></div>
+                    <div className="surface-subtle rounded-xl p-3"><p className="text-[10px] text-muted">EXPECTED</p><p className="mt-1 font-black">{r.boss_expected_yield}</p></div>
+                    <div className="surface-subtle rounded-xl p-3"><p className="text-[10px] text-muted">MADE</p><p className="mt-1 font-black">{r.actual_yield}</p></div>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        </section>
       </div>
     </main>
   )
