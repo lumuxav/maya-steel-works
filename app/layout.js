@@ -19,10 +19,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   const themeScript = `
     try {
-      const saved = localStorage.getItem('maya-theme') || 'blue';
+      const saved = localStorage.getItem('maya-theme') || 'light';
       document.documentElement.dataset.theme = saved;
     } catch (e) {
-      document.documentElement.dataset.theme = 'blue';
+      document.documentElement.dataset.theme = 'light';
     }
   `;
 
