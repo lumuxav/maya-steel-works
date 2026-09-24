@@ -80,6 +80,21 @@ export default function SalesPage() {
     const totalAmt = quantity * unitPrice
     const paid = status === 'paid' ? totalAmt : status === 'credit' ? 0 : Number(paidAmount) || 0
 
+    const { data: createdSale, error: sErr } = await supabase.from('sales').insert({
+      item_type: itemType,
+      item_id: item.id,
+      quantity,
+      unit_price: unitPrice,
+      selling_price: unitPrice,
+      total_amount: totalAmt,
+      amount_paid: paid,
+      payment_status: status,
+      customer_name: customer || 'Walk-in',
+      sold_by: session.user.id,
+      item_label: label
+    }).select('id').single()
+    if (sErr) return sErr.message
+
     const { error: dErr } = await supabase.rpc('deduct_stock', {
       p_item_type: itemType,
       p_item_id: item.id,
@@ -87,21 +102,12 @@ export default function SalesPage() {
       p_movement_type: 'sold',
       p_notes: `Sold to ${customer || 'Walk-in'} (${status})`
     })
-    if (dErr) return dErr.message
 
-    const { error: sErr } = await supabase.from('sales').insert({
-      item_type: itemType,
-      item_id: item.id,
-      quantity,
-      unit_price: unitPrice,
-      total_amount: totalAmt,
-      amount_paid: paid,
-      payment_status: status,
-      customer_name: customer || 'Walk-in',
-      sold_by: session.user.id,
-      item_label: label
-    })
-    if (sErr) return sErr.message
+    if (dErr) {
+      if (createdSale?.id) await supabase.from('sales').delete().eq('id', createdSale.id)
+      return dErr.message
+    }
+
     return null
   }
 
