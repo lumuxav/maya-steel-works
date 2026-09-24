@@ -2,23 +2,27 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
 async function verifySuperAdmin(req) {
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return { error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' }
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  )
+  if (!url || !anonKey || !serviceKey) {
+    return { error: 'Server authentication is not fully configured.', status: 500 }
+  }
 
   const token = (req.headers.get('authorization') || '').replace('Bearer ', '')
-  if (!token) return { error: 'No session token sent.' }
+  if (!token) return { error: 'No session token sent.', status: 401 }
 
-  const { data, error } = await supabase.auth.getUser(token)
-  if (error || !data?.user) return { error: 'Session expired.' }
+  const authClient = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } })
+  const { data, error } = await authClient.auth.getUser(token)
+  if (error || !data?.user) return { error: 'Session expired — sign in again.', status: 401 }
 
-  const { data: caller } = await supabase.from('users').select('role, active').eq('id', data.user.id).single()
-  if (caller?.role !== 'super_admin' || caller?.active === false) return { error: 'Super Admin only.' }
+  const adminClient = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+  const { data: caller, error: callerError } = await adminClient.from('users').select('role, active').eq('id', data.user.id).single()
+  if (callerError) return { error: callerError.message, status: 500 }
+  if (caller?.role !== 'super_admin' || caller?.active === false) return { error: 'Super Admin only.', status: 403 }
 
-  return { supabase }
+  return { supabase: adminClient }
 }
 
 const safeRows = async (promise) => {
@@ -32,7 +36,7 @@ const safeRows = async (promise) => {
 
 export async function GET(req) {
   const check = await verifySuperAdmin(req)
-  if (check.error) return NextResponse.json({ error: check.error }, { status: 403 })
+  if (check.error) return NextResponse.json({ error: check.error }, { status: check.status || 403 })
 
   const { supabase } = check
   const now = new Date()
