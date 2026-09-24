@@ -1,10 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
+const SYSTEM_BRANCH = 'Maya Branch'
+
 async function verifySuperAdmin(req) {
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return { error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY — add it to .env.local and RESTART the dev server.' }
-  }
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return { error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY — add it to .env.local and restart the server.' }
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
   const token = (req.headers.get('authorization') || '').replace('Bearer ', '')
   if (!token) return { error: 'No session token sent — refresh the page and sign in again.' }
@@ -22,7 +22,7 @@ export async function POST(req) {
   const { email, password, full_name, role } = await req.json()
   const { data, error } = await supabase.auth.admin.createUser({ email, password, email_confirm: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  const { error: pErr } = await supabase.from('users').insert({ id: data.user.id, full_name, role, active: true })
+  const { error: pErr } = await supabase.from('users').insert({ id: data.user.id, full_name, role, branch: SYSTEM_BRANCH, active: true })
   if (pErr) return NextResponse.json({ error: pErr.message }, { status: 400 })
   return NextResponse.json({ ok: true })
 }
