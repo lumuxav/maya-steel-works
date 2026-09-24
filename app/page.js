@@ -24,10 +24,7 @@ export default function HomePage() {
   useEffect(() => {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        window.location.href = '/login'
-        return
-      }
+      if (!session) return (window.location.href = '/login')
 
       const { data: prof } = await supabase.from('users').select('full_name, role').eq('id', session.user.id).single()
       setProfile(prof)
@@ -66,184 +63,130 @@ export default function HomePage() {
         fb[branch] = (fb[branch] || 0) + 1
       })
       setFgBranches(fb)
-
       setLoading(false)
     }
-
     load()
   }, [])
 
-  if (!profile || loading) {
-    return <main className="min-h-screen grid place-items-center text-sm text-muted">Loading dashboard...</main>
-  }
+  if (!profile || loading) return <main className="min-h-screen grid place-items-center text-sm text-muted">Loading dashboard...</main>
 
   const todayStr = toDayStr(new Date())
   const payBySale = {}
-  events.forEach((e) => {
-    if (e.sale_id) payBySale[e.sale_id] = (payBySale[e.sale_id] || 0) + Number(e.amount)
-  })
-
+  events.forEach((e) => { if (e.sale_id) payBySale[e.sale_id] = (payBySale[e.sale_id] || 0) + Number(e.amount) })
   const saleTimePaid = (s) => Math.max(0, Number(s.amount_paid) - (payBySale[s.id] || 0))
-  const cashInToday =
-    sales.filter((s) => toDayStr(new Date(s.created_at)) === todayStr).reduce((sum, s) => sum + saleTimePaid(s), 0) +
-    events.filter((e) => toDayStr(new Date(e.created_at)) === todayStr).reduce((sum, e) => sum + Number(e.amount), 0)
-
-  const outstanding = sales.reduce((sum, s) => {
-    const bal = Number(s.total_amount) - Number(s.amount_paid) - (Number(s.adjustments) || 0)
-    return sum + Math.max(0, bal)
-  }, 0)
-
+  const cashInToday = sales.filter((s) => toDayStr(new Date(s.created_at)) === todayStr).reduce((sum, s) => sum + saleTimePaid(s), 0) + events.filter((e) => toDayStr(new Date(e.created_at)) === todayStr).reduce((sum, e) => sum + Number(e.amount), 0)
+  const outstanding = sales.reduce((sum, s) => sum + Math.max(0, Number(s.total_amount) - Number(s.amount_paid) - (Number(s.adjustments) || 0)), 0)
   const pendingAmount = bankings.reduce((sum, b) => sum + Number(b.amount_banked), 0)
   const flaggedProd = runs.filter((r) => Number(r.boss_expected_yield) !== Number(r.actual_yield)).length
   const alertCount = bankings.length + flaggedProd + counts.length
   const branches = Array.from(new Set([...Object.keys(rawBranches), ...Object.keys(fgBranches)]))
 
-  const NAV = [
-    { href: '/inventory', title: 'Inventory', desc: 'Raw materials and finished goods' },
-    { href: '/deliveries', title: 'Receive Delivery', desc: 'Incoming stock and truck deliveries' },
-    { href: '/sales', title: 'Record Sale', desc: 'Sales and make-to-sell entries' },
-    { href: '/production', title: 'Record Production', desc: 'Materials used and output made' },
-    { href: '/transfers', title: 'Branch Transfers', desc: 'Move stock between branches' },
-    { href: '/stocktake', title: 'Stocktake', desc: 'Physical count and differences' },
-    { href: '/sales-report', title: 'Sales & Credit Book', desc: 'Sales, debtors and payments' },
-    { href: '/cashbook', title: 'Cash Book & Banking', desc: 'Expenses and end-of-day banking' },
-  ]
-
-  const ADMIN_NAV = [
-    { href: '/alerts', title: 'Activity & Alerts', desc: 'Items needing management attention' },
-    { href: '/production-report', title: 'Production Report', desc: 'Expected versus actual output' },
-    { href: '/profit', title: 'Profit Dashboard', desc: 'Profitability and management figures' },
-    { href: '/records', title: 'Records & Discrepancies', desc: 'Operational records and exceptions' },
-    { href: '/corrections', title: 'Corrections', desc: 'Fix entries with an audit trail' },
+  const ops = [
+    ['/inventory', 'Inventory', 'Stock overview', '▦'],
+    ['/deliveries', 'Receive Delivery', 'Incoming materials', '↓'],
+    ['/sales', 'Record Sale', 'Sales and payments', '$'],
+    ['/production', 'Production', 'Output and usage', '⚙'],
+    ['/transfers', 'Transfers', 'Move stock', '⇄'],
+    ['/stocktake', 'Stocktake', 'Physical counts', '✓'],
+    ['/sales-report', 'Sales & Credit', 'Debtors and history', '≡'],
+    ['/cashbook', 'Cash Book', 'Expenses and banking', '¤'],
   ]
 
   return (
-    <main className="min-h-screen px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
-        <header className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: 'var(--line)' }}>
+    <main className="app-shell flex">
+      <aside className="desktop-sidebar fixed inset-y-0 left-0 p-5">
+        <div className="flex items-center gap-3 px-1">
+          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-[var(--accent)] text-sm font-black text-white">MS</div>
           <div>
-            <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Maya Steel Works</h1>
-            <p className="mt-1 text-sm text-muted">Management System</p>
+            <p className="font-black leading-tight">Maya Steel Works</p>
+            <p className="text-xs text-muted">Management</p>
           </div>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <ThemePicker compact />
-            <div className="surface hidden rounded-lg px-3 py-2 sm:block">
-              <p className="text-sm font-bold">{profile.full_name}</p>
-              <p className="text-[11px] uppercase tracking-wide text-muted">{profile.role}</p>
+        <nav className="mt-8 space-y-1">
+          <Link href="/" className="sidebar-link sidebar-link-active"><span className="nav-icon">⌂</span>Dashboard</Link>
+          <Link href="/inventory" className="sidebar-link"><span className="nav-icon">▦</span>Inventory</Link>
+          <Link href="/sales" className="sidebar-link"><span className="nav-icon">$</span>Sales</Link>
+          <Link href="/production" className="sidebar-link"><span className="nav-icon">⚙</span>Production</Link>
+          <Link href="/cashbook" className="sidebar-link"><span className="nav-icon">¤</span>Cash Book</Link>
+          {isAdmin && <Link href="/alerts" className="sidebar-link"><span className="nav-icon">!</span>Alerts</Link>}
+        </nav>
+
+        <div className="absolute bottom-5 left-5 right-5">
+          <ThemePicker />
+          <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login' }} className="btn-secondary mt-3 w-full rounded-xl px-3 py-2.5 text-sm font-bold">Sign out</button>
+        </div>
+      </aside>
+
+      <section className="mobile-safe-bottom min-w-0 flex-1 lg:ml-[248px]">
+        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+          <header className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm text-muted">Good day,</p>
+              <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{profile.full_name}</h1>
+              <p className="mt-1 text-sm text-muted">Here’s what’s happening at Maya Steel Works.</p>
             </div>
-            <button
-              onClick={async () => {
-                await supabase.auth.signOut()
-                window.location.href = '/login'
-              }}
-              className="btn-secondary rounded-lg px-3 py-2 text-sm font-bold"
-            >
-              Sign out
-            </button>
-          </div>
-        </header>
+            <div className="lg:hidden"><ThemePicker compact /></div>
+          </header>
 
-        {isAdmin && alertCount > 0 && (
-          <Link href="/alerts" className="mt-5 block rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm">
-            <span className="font-bold text-red-400">{alertCount} items need attention.</span>
-            <span className="ml-2 text-muted">Review pending banking, production flags and stock differences.</span>
-          </Link>
-        )}
+          {isAdmin && alertCount > 0 && (
+            <Link href="/alerts" className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-red-400/25 bg-red-400/10 px-4 py-3.5">
+              <div><p className="font-bold text-red-400">{alertCount} items need attention</p><p className="mt-1 text-xs text-muted">Banking, production or stock differences</p></div><span className="text-muted">→</span>
+            </Link>
+          )}
 
-        <section className="mt-6">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-black uppercase tracking-[0.12em] text-muted">Overview</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Link href="/cashbook" className="surface rounded-xl p-4">
-              <p className="text-sm text-muted">Cash in today</p>
-              <p className="metric-value-success mt-2 text-2xl font-black">{formatMoney(cashInToday)}</p>
-            </Link>
-            <Link href="/sales-report?tab=debtors" className="surface rounded-xl p-4">
-              <p className="text-sm text-muted">Outstanding credit</p>
-              <p className="metric-value-danger mt-2 text-2xl font-black">{formatMoney(outstanding)}</p>
-            </Link>
-            <Link href="/cashbook" className="surface rounded-xl p-4">
-              <p className="text-sm text-muted">Pending banking</p>
-              <p className="metric-value-warning mt-2 text-2xl font-black">{bankings.length}</p>
-              <p className="mt-1 text-xs text-muted">{formatMoney(pendingAmount)} awaiting confirmation</p>
-            </Link>
-            <Link href="/production-report" className="surface rounded-xl p-4">
-              <p className="text-sm text-muted">Production flags</p>
-              <p className="metric-value-danger mt-2 text-2xl font-black">{flaggedProd}</p>
-            </Link>
-          </div>
-        </section>
+          <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Link href="/cashbook" className="soft-card p-5"><p className="text-sm text-muted">Cash in today</p><p className="metric-value-success mt-3 text-3xl font-black">{formatMoney(cashInToday)}</p><p className="mt-2 text-xs text-muted">Collected today</p></Link>
+            <Link href="/sales-report?tab=debtors" className="soft-card p-5"><p className="text-sm text-muted">Outstanding credit</p><p className="metric-value-danger mt-3 text-3xl font-black">{formatMoney(outstanding)}</p><p className="mt-2 text-xs text-muted">Customer balances</p></Link>
+            <Link href="/cashbook" className="soft-card p-5"><p className="text-sm text-muted">Pending banking</p><p className="metric-value-warning mt-3 text-3xl font-black">{bankings.length}</p><p className="mt-2 text-xs text-muted">{formatMoney(pendingAmount)} awaiting confirmation</p></Link>
+            <Link href="/production-report" className="soft-card p-5"><p className="text-sm text-muted">Production flags</p><p className="metric-value-danger mt-3 text-3xl font-black">{flaggedProd}</p><p className="mt-2 text-xs text-muted">Outside expected yield</p></Link>
+          </section>
 
-        <section className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_0.75fr]">
-          <div>
-            <h2 className="mb-3 text-sm font-black uppercase tracking-[0.12em] text-muted">Operations</h2>
-            <div className="surface overflow-hidden rounded-xl">
-              <div className="divide-y" style={{ borderColor: 'var(--line)' }}>
-                {NAV.map((item) => (
-                  <Link key={item.href} href={item.href} className="flex items-center justify-between gap-4 px-4 py-4 hover:opacity-80" style={{ borderColor: 'var(--line)' }}>
-                    <div>
-                      <p className="font-bold">{item.title}</p>
-                      <p className="mt-1 text-sm text-muted">{item.desc}</p>
-                    </div>
-                    <span className="text-muted">→</span>
+          <section className="mt-8 grid gap-7 xl:grid-cols-[1.5fr_.8fr]">
+            <div>
+              <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-black">Operations</h2><span className="text-xs text-muted">Quick access</span></div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {ops.map(([href, title, desc, icon]) => (
+                  <Link key={href} href={href} className="module-card">
+                    <div className="nav-icon">{icon}</div>
+                    <p className="mt-4 font-black">{title}</p>
+                    <p className="mt-1 text-sm text-muted">{desc}</p>
                   </Link>
                 ))}
               </div>
-            </div>
 
-            {isAdmin && (
-              <>
-                <h2 className="mb-3 mt-6 text-sm font-black uppercase tracking-[0.12em] text-muted">Management</h2>
-                <div className="surface overflow-hidden rounded-xl">
-                  <div className="divide-y" style={{ borderColor: 'var(--line)' }}>
-                    {ADMIN_NAV.map((item) => (
-                      <Link key={item.href} href={item.href} className="flex items-center justify-between gap-4 px-4 py-4 hover:opacity-80" style={{ borderColor: 'var(--line)' }}>
-                        <div>
-                          <p className="font-bold">{item.title}</p>
-                          <p className="mt-1 text-sm text-muted">{item.desc}</p>
-                        </div>
-                        <span className="text-muted">→</span>
-                      </Link>
+              {isAdmin && (
+                <div className="mt-8">
+                  <h2 className="mb-4 text-lg font-black">Management</h2>
+                  <div className="soft-card overflow-hidden">
+                    {[
+                      ['/alerts','Activity & Alerts'], ['/production-report','Production Report'], ['/profit','Profit Dashboard'], ['/records','Records & Discrepancies'], ['/corrections','Corrections'], ...(profile.role === 'super_admin' ? [['/users','Users & Roles']] : [])
+                    ].map(([href, title], i, arr) => (
+                      <Link key={href} href={href} className="flex items-center justify-between px-5 py-4" style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--line)' : '0' }}><span className="font-bold">{title}</span><span className="text-muted">→</span></Link>
                     ))}
-                    {profile.role === 'super_admin' && (
-                      <Link href="/users" className="flex items-center justify-between gap-4 px-4 py-4 hover:opacity-80" style={{ borderColor: 'var(--line)' }}>
-                        <div>
-                          <p className="font-bold">Users & Roles</p>
-                          <p className="mt-1 text-sm text-muted">Create staff, roles and account access</p>
-                        </div>
-                        <span className="text-muted">→</span>
-                      </Link>
-                    )}
                   </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          <aside>
-            <h2 className="mb-3 text-sm font-black uppercase tracking-[0.12em] text-muted">Stock by branch</h2>
-            <div className="surface rounded-xl p-4">
-              {branches.length === 0 ? (
-                <p className="text-sm text-muted">No stock currently recorded.</p>
-              ) : (
-                <div className="space-y-3">
-                  {branches.map((branch) => (
-                    <div key={branch} className="surface-subtle rounded-lg px-3 py-3">
-                      <p className="font-bold">{branch}</p>
-                      <div className="mt-2 flex gap-4 text-sm text-muted">
-                        <span>{rawBranches[branch] || 0} raw</span>
-                        <span>{fgBranches[branch] || 0} finished</span>
-                      </div>
-                    </div>
-                  ))}
                 </div>
               )}
             </div>
-          </aside>
-        </section>
-      </div>
+
+            <aside>
+              <h2 className="mb-4 text-lg font-black">Stock by branch</h2>
+              <div className="soft-card p-4">
+                {branches.length === 0 ? <p className="text-sm text-muted">No stock recorded.</p> : branches.map((branch) => (
+                  <div key={branch} className="mb-3 rounded-2xl bg-[var(--panel-2)] p-4 last:mb-0">
+                    <div className="flex items-center justify-between"><p className="font-black">{branch}</p><span className="text-xs text-muted">Live</span></div>
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><p className="text-muted">Raw</p><p className="mt-1 font-black">{rawBranches[branch] || 0}</p></div><div><p className="text-muted">Finished</p><p className="mt-1 font-black">{fgBranches[branch] || 0}</p></div></div>
+                  </div>
+                ))}
+              </div>
+            </aside>
+          </section>
+        </div>
+      </section>
+
+      <nav className="mobile-bottom-nav">
+        <Link href="/">Home</Link><Link href="/inventory">Inventory</Link><Link href="/sales">Sales</Link><Link href="/cashbook">Cash</Link>
+      </nav>
     </main>
   )
 }
