@@ -70,17 +70,67 @@ Required GitHub Actions repository secret:
 
 `MAYA_HEALTHCHECK_SECRET` and Vercel's `HEALTHCHECK_SECRET` must contain the same strong random value.
 
-After configuring both secrets:
+The workflow has been manually tested successfully.
 
-1. Redeploy Vercel so the health endpoint receives `HEALTHCHECK_SECRET`.
-2. Open GitHub → Actions → **Keep Supabase Active**.
-3. Run the workflow manually once.
-4. Confirm the workflow succeeds and returns `"ok":true`.
+### UptimeRobot
+
+UptimeRobot is also configured against the production web application on a 5-minute interval.
+
+Its purpose is website availability monitoring. The GitHub scheduled endpoint remains the stronger Supabase-specific check because it performs a real database query.
 
 ### Production recommendation
 
-The scheduled health request is a useful Free Plan safeguard and also provides an availability check. For a business-critical production deployment, the stronger long-term option is a Supabase paid plan because paid projects are not automatically paused for inactivity.
+The scheduled health request is a useful Free Plan safeguard and availability check. For a business-critical deployment, the stronger long-term option is a Supabase paid plan because paid projects are not automatically paused for inactivity.
 
-## Production security
+## Production security hardening
 
-Before broad production use, review Supabase Security Advisor findings and resolve externally exposed SECURITY DEFINER objects/functions that are not intentionally public. Also consider leaked-password protection and the rest of Supabase's production security checklist.
+Before live data entry, privileged Supabase stock operations were reviewed and hardened.
+
+Completed work includes:
+
+- anonymous/public access removed from privileged stock-changing RPCs
+- authenticated stock mutations restricted through active Maya-user/role/branch validation
+- legacy multi-branch `transfer_stock` access disabled for normal authenticated use
+- privileged implementations moved behind safer private/wrapper logic where required
+- key SECURITY DEFINER/view exposure warnings removed or reduced
+- missing foreign-key/history indexes added
+- selected high-traffic RLS checks optimized without intentionally widening permissions
+
+Continue reviewing Supabase Security Advisor after future schema/RLS changes. Leaked-password protection and other Auth security recommendations should remain enabled/reviewed.
+
+## Session policy for production
+
+Active users should remain signed in on their trusted device during normal use.
+
+The application now:
+
+- persists Supabase sessions
+- auto-refreshes tokens
+- skips the login screen when an active valid session is already stored
+- does not erase a valid session because of a temporary network/profile-check error
+- forces logout when the user's account is confirmed inactive/deleted
+- retains explicit Sign out in Settings
+
+## Vercel production project
+
+The correct production project is:
+
+`maya-steel-works-eboa`
+
+A duplicate Vercel integration/project named `maya-steel-works` was disconnected after duplicate builds contributed to the Hobby build-rate limit.
+
+Only the correct production project should remain connected to `lumuxav/maya-steel-works`.
+
+## Android production distribution
+
+The maintained Android build is published as the repository's Latest Release:
+
+`https://github.com/lumuxav/maya-steel-works/releases/latest`
+
+Direct APK:
+
+`https://github.com/lumuxav/maya-steel-works/releases/download/maya-latest/Maya-Steel-Works.apk`
+
+The current release includes the native Capacitor App plugin so Android Back navigation remains inside Maya until the user reaches Home.
+
+The APK is still debug-signed for internal/direct installation. Configure a stable release signing keystore before relying on seamless long-term APK upgrades across staff devices.

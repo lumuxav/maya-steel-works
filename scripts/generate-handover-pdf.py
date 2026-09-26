@@ -5,10 +5,11 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'docs' / 'MAYA_SYSTEM_HANDOVER.md'
+ADDENDUM = ROOT / 'docs' / 'LATEST_PRODUCTION_STATUS.md'
 OUTPUT = ROOT / 'docs' / 'Maya-Steel-Works-System-Handover.pdf'
 
 BLUE = colors.HexColor('#173A68')
@@ -63,9 +64,7 @@ def parse_table(lines):
         rows.append([Paragraph(inline(c), small) for c in cells])
     if not rows:
         return None
-    widths = None
-    if len(rows[0]) == 2:
-        widths = [52 * mm, 128 * mm]
+    widths = [52 * mm, 128 * mm] if len(rows[0]) == 2 else None
     table = Table(rows, colWidths=widths, repeatRows=1, hAlign='CENTER')
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), BLUE),
@@ -81,7 +80,11 @@ def parse_table(lines):
     return table
 
 
-lines = SOURCE.read_text(encoding='utf-8').splitlines()
+text = SOURCE.read_text(encoding='utf-8')
+if ADDENDUM.exists():
+    text += '\n\n---\n\n' + ADDENDUM.read_text(encoding='utf-8')
+lines = text.splitlines()
+
 story = []
 i = 0
 first_title = True
@@ -115,18 +118,18 @@ while i < len(lines):
         continue
 
     if stripped.startswith('# '):
-        text = stripped[2:].strip()
-        story.append(Paragraph(inline(text), title if first_title else h1))
+        text_value = stripped[2:].strip()
+        story.append(Paragraph(inline(text_value), title if first_title else h1))
         first_title = False
         i += 1
         continue
 
     if stripped.startswith('## '):
-        text = stripped[3:].strip()
-        if text == 'Complete Project Handover and Development Context':
-            story.append(Paragraph(inline(text), subtitle))
+        text_value = stripped[3:].strip()
+        if text_value == 'Complete Project Handover and Development Context':
+            story.append(Paragraph(inline(text_value), subtitle))
         else:
-            story.append(Paragraph(inline(text), h1))
+            story.append(Paragraph(inline(text_value), h1))
         i += 1
         continue
 
@@ -147,8 +150,8 @@ while i < len(lines):
 
     if re.match(r'^- \[[ xX]\] ', stripped):
         mark = '&#9745;' if '[x]' in stripped.lower() else '&#9744;'
-        text = re.sub(r'^- \[[ xX]\] ', '', stripped)
-        story.append(Paragraph(f'{mark} {inline(text)}', bullet))
+        text_value = re.sub(r'^- \[[ xX]\] ', '', stripped)
+        story.append(Paragraph(f'{mark} {inline(text_value)}', bullet))
         i += 1
         continue
 
@@ -163,7 +166,6 @@ while i < len(lines):
         i += 1
         continue
 
-    # Gather a normal paragraph until the next structural line.
     parts = [stripped]
     i += 1
     while i < len(lines):

@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - 'docs/MAYA_SYSTEM_HANDOVER.md'
+      - 'docs/LATEST_PRODUCTION_STATUS.md'
       - 'scripts/generate-handover-pdf.py'
       - '.github/workflows/generate-handover-pdf.yml'
 

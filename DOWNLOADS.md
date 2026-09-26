@@ -1,45 +1,55 @@
 # Maya Steel Works — Downloads
 
-This page is the easiest place to find the current Maya Steel Works applications and live system.
+Use this page for the current Maya Steel Works application and production system.
 
-## Android
+## Android — current official install
 
-**Direct APK:**
+**Latest Release page**  
+https://github.com/lumuxav/maya-steel-works/releases/latest
 
+**Direct APK**  
 https://github.com/lumuxav/maya-steel-works/releases/download/maya-latest/Maya-Steel-Works.apk
 
-**Latest release page:**
+For normal installation, always use the **Latest Release** above instead of downloading an older artifact from GitHub Actions.
 
-https://github.com/lumuxav/maya-steel-works/releases/tag/maya-latest
+The current release is built from `main` and includes the native Capacitor App plugin for Android Back-button handling:
 
-The Android APK is built from the `main` branch and connects to the live production system at:
+- sub-pages navigate back through Maya rather than immediately closing the application
+- if no useful app history exists, Back returns to Home
+- Home is the screen from which Android Back may exit the application
 
-https://maya-steel-works-mgt.vercel.app
+It also includes the existing cross-device safe-area, keyboard and system-bar support.
 
 > Android may ask you to allow installation from your browser or Files app because this is a direct APK installation rather than a Play Store installation.
 
+### Updating an existing APK
+
+The current pipeline produces a debug-signed internal APK. If Android refuses to install a newer APK over an older build because the signatures differ, the old Maya app must be removed before installing the new APK. That can clear local app storage/session state, so the user may need to sign in once again.
+
+For reliable long-term in-place upgrades, configure a stable production signing keystore.
+
 ## Desktop
 
-The production desktop version currently runs through the web application:
+Production desktop/laptop system:
 
 https://maya-steel-works-mgt.vercel.app
 
-It is fully responsive for desktop/laptop use. Native Windows `.exe` and macOS `.dmg` installers have not yet been packaged.
+The responsive web application is the official desktop experience. Native Windows `.exe` and macOS `.dmg` installers have not yet been packaged.
 
 ## iPhone / iPad
 
-The Capacitor iOS project has passed an unsigned iPhone/iPad simulator build validation from `main`.
+The Capacitor iOS project passes unsigned simulator/native build validation, including the native App plugin used for navigation support.
 
-A directly installable signed iOS app is **not published yet** because Apple requires signing/distribution credentials. Until that step is completed, iPhone and iPad users can use the production web/PWA version:
+A signed installable iOS package is not published yet because Apple signing/provisioning is still required.
+
+Until native iOS distribution is configured, iPhone/iPad users can use:
 
 https://maya-steel-works-mgt.vercel.app
 
 ## Source of truth
 
-All production application work is kept on the `main` branch.
-
-- Web production: `main` → Vercel
+- Web production: `main` → Vercel (`maya-steel-works-eboa`)
 - Android: `main` → GitHub Actions → `maya-latest` GitHub Release
 - iOS: `main` → iOS validation workflow
 
-Do not download old APKs from older Actions runs unless you specifically need an older test build. For normal installation, always use the `maya-latest` release above.
+Do not use old APKs from historical workflow runs for normal staff installation.

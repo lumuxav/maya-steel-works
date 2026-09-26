@@ -7,285 +7,308 @@
 ![Android](https://img.shields.io/badge/Android-APK-3DDC84?logo=android&logoColor=white)
 [![Build Android APK](https://github.com/lumuxav/maya-steel-works/actions/workflows/build-android-apk.yml/badge.svg)](https://github.com/lumuxav/maya-steel-works/actions/workflows/build-android-apk.yml)
 
-A full business-management platform built specifically for **Maya Steel Works**.
+A production business-management platform built specifically for **Maya Steel Works — Maya Branch**.
 
-The system brings inventory, deliveries, production, sales, credit/debt tracking, customer-owned material jobs, expenses, banking, cash control, management reporting, alerts and system administration into one responsive application.
-
-It runs as a web application, can be installed as a PWA, and can also be packaged as a directly installable Android APK.
+Maya combines inventory, deliveries, production, sales, customer-owned material work, credit/debt, debt repayments, cash, expenses, banking, alerts, reports, user management and system administration in one responsive system.
 
 > **Production:** https://maya-steel-works-mgt.vercel.app
 
----
+## Download the Android app
 
-## Complete project handover documentation
+For normal installation, **do not download old APKs from GitHub Actions**. Use the maintained Latest Release:
 
-For full context on the system, business rules, architecture, solved issues, deployment history, Android/iOS work and the decisions made during development, use the project handover:
+- **Latest Android release:** https://github.com/lumuxav/maya-steel-works/releases/latest
+- **Direct APK:** https://github.com/lumuxav/maya-steel-works/releases/download/maya-latest/Maya-Steel-Works.apk
+- **Download guide:** [DOWNLOADS.md](DOWNLOADS.md)
 
-- **[Download / open the complete Maya Steel Works System Handover PDF](docs/Maya-Steel-Works-System-Handover.pdf)**
-- **[Read the editable handover source](docs/MAYA_SYSTEM_HANDOVER.md)**
+The current Android build includes:
 
-The PDF is generated from the Markdown source by `.github/workflows/generate-handover-pdf.yml`, so future project-context updates should be made in `docs/MAYA_SYSTEM_HANDOVER.md` and the PDF will be regenerated automatically.
+- Capacitor 8 native shell
+- Maya launcher icon and splash assets
+- Android safe-area and system-bar handling
+- responsive phone/tablet layouts
+- native keyboard handling
+- persistent Supabase login sessions
+- native Android Back-button navigation: sub-pages navigate back inside Maya; Home is the screen from which Back may exit the app
 
-A future developer or ChatGPT session should read the handover before making significant changes, then inspect the current `main` branch because the code may have advanced since the handover was last updated.
-
----
-
-## What the system manages
-
-Maya Steel Works is designed around the actual day-to-day movement of stock, work and money inside the business.
-
-### Inventory
-
-- Raw-material stock management
-- Finished-goods stock management
-- Delivery receiving
-- Quantity tracking
-- Physical stocktake support
-- Stock corrections and audit history
-- Item lifecycle reports showing how stock was received, produced, used or sold
-- Maya Branch-only operating scope
-
-### Production
-
-- Convert raw materials into finished goods
-- Record raw-material usage
-- Record expected and actual production output
-- Track scrap/waste where applicable
-- Maintain production history
-- Surface production differences to management
-
-### Sales
-
-- Sell finished goods
-- Sell raw materials
-- Record paid, partial and credit sales
-- Automatically deduct stock where appropriate
-- Track customer balances
-- Record later debt repayments
-- Keep sales and debt history linked to the responsible staff member
-
-### Customer-owned material work
-
-Customers can bring their own metal/material for Maya Steel Works to process.
-
-The system can record services such as:
-
-- Ribbing/forming
-- Cutting kibaati/plain strips
-- Louver-related work
-- Plate/piece-based service work
-
-For these jobs, Maya inventory is **not deducted** because the material belongs to the customer. The system records the number of plates/pieces worked on, the charge per piece and the resulting service revenue.
-
-### Cash Book & Banking
-
-- Daily cash received
-- Daily expenses
-- Cash still on hand
-- Banking records
-- Pending and confirmed banking
-- Opening cash carried forward from previous days
-- Continuous day-by-day cash archive
-- Cash-source breakdown showing where today's money came from
-- Debt repayments reflected in the day's cash position
-- Customer-material/service revenue reflected separately
-
-The cashbook is designed to preserve the story of each business day rather than only showing a current balance.
-
-### Alerts & Management Activity
-
-Management can see important operational events including:
-
-- Credit sales
-- Debt repayments
-- Banking awaiting confirmation
-- Flagged banking differences
-- Production variances
-- Stocktake differences
-- Expenses
-- Other business exceptions requiring attention
-
-### Reports
-
-The system includes operational and management reporting for areas such as:
-
-- Sales and credit
-- Inventory
-- Production
-- Cash and banking
-- Customer debt/payment history
-- Stock lifecycle/history
-- Corrections and exceptions
+The APK currently remains an **internal/direct-install debug-signed build**. Before broad staff distribution and seamless long-term APK upgrades, configure a stable release signing key/keystore.
 
 ---
 
-## User roles
+## Project documentation
 
-Maya Steel Works uses role-based access so each user sees the parts of the system appropriate to their responsibilities.
+Read these before making major production changes:
 
-### Employee
+- **[Complete handover PDF](docs/Maya-Steel-Works-System-Handover.pdf)**
+- **[Main handover source](docs/MAYA_SYSTEM_HANDOVER.md)**
+- **[Latest production-status addendum](docs/LATEST_PRODUCTION_STATUS.md)**
+- **[Production cutover notes](docs/PRODUCTION_CUTOVER.md)**
 
-Employees handle normal operational work such as stock activity, sales, customer-material jobs and other permitted day-to-day tasks.
+The handover PDF is generated automatically from the main handover plus the latest-status addendum.
 
-Employees do not receive owner-level financial oversight or system-administration powers.
-
-### Admin
-
-The **Admin is the business owner/manager**.
-
-The Admin is responsible for business oversight and can access management information such as:
-
-- Daily business activity
-- Sales and credit information
-- Cash and banking
-- Business reports
-- Alerts and exceptions
-- Operational performance
-- Profit/business information where implemented
-
-The Admin represents ownership/management of the business, not technical administration of the software.
-
-### Super Admin
-
-The **Super Admin manages the system itself**.
-
-Super Admin capabilities include:
-
-- System monitoring
-- User-account management
-- Role management
-- Password resets
-- Account activation/deactivation
-- Permanent account removal/archiving
-- System alerts and integrity monitoring
-- Troubleshooting operational issues
-
-A Super Admin is intentionally separated from the business-owner Admin role.
+A future developer or ChatGPT session should read these documents and then inspect the current `main` branch before modifying the system.
 
 ---
 
-## Account security
-
-The application uses **Supabase Auth** for authentication and a Maya user profile/role layer for authorization.
-
-Important account protections include:
-
-- Inactive users are blocked from signing in
-- Disabling an account revokes access instead of waiting for the user to manually log out
-- Active sessions regularly re-check account access
-- Super Admin actions are verified server-side
-- A Super Admin cannot accidentally remove their own system access through the normal user controls
-- Deleted users can be hidden/revoked while historical IDs are preserved where necessary for audit integrity
-- Sensitive administration uses a server-only Supabase secret/service key
-
-> Never expose `SUPABASE_SERVICE_ROLE_KEY` in browser code, commit it to GitHub, or prefix it with `NEXT_PUBLIC_`.
-
----
-
-## Appearance & mobile UX
-
-The interface is responsive and designed for both desktop and phone use.
-
-Users can choose between:
-
-- Light theme
-- Dark theme
-- Navy theme
-
-Settings also include display preferences, reduced motion, compact layout options, notification controls and built-in help.
-
----
-
-## Architecture
+## Production architecture
 
 ```mermaid
 flowchart LR
-    A[Desktop / Mobile Browser] --> B[Next.js Application]
+    A[Desktop / Mobile Browser] --> B[Next.js 16 / React 19]
     C[Android APK] --> B
-    D[Installed PWA] --> B
-    B --> E[Vercel]
-    B --> F[Supabase Auth]
-    B --> G[Supabase Database]
-    B --> H[Supabase Storage / Realtime where used]
+    D[PWA] --> B
+    E[iOS Capacitor shell] --> B
+    B --> F[Vercel]
+    B --> G[Supabase Auth]
+    B --> H[Supabase PostgreSQL]
+    B --> I[Supabase Storage / Realtime where used]
 ```
 
-The Android application is a Capacitor shell connected to the live production system, so most business-logic and UI updates can be deployed through the web application without rebuilding the APK.
+**Production source of truth:** `main`  
+**Correct Vercel project:** `maya-steel-works-eboa`  
+**Android package ID:** `com.mayasteelworks.management`
+
+The old duplicate Vercel project connection named `maya-steel-works` was disconnected. Only `maya-steel-works-eboa` should deploy this repository.
 
 ---
 
-## Technology stack
+## Business scope
 
-| Layer | Technology |
-| --- | --- |
-| Frontend | Next.js 16, React 19 |
-| Styling | Tailwind CSS 4 + application CSS |
-| Backend/Data | Supabase |
-| Authentication | Supabase Auth |
-| Hosting | Vercel |
-| PWA | Web App Manifest + Service Worker |
-| Android packaging | Capacitor |
-| Android builds | GitHub Actions |
+This installation is intentionally **Maya Branch only**.
+
+The system must not combine or imply knowledge of stock, sales, banking, cash, production or other activity from branches that are not recorded here.
+
+### Inventory
+
+- raw-material inventory
+- finished-goods inventory
+- delivery receiving
+- quantity tracking
+- stocktake
+- corrections/audit history
+- lifecycle reports
+
+### Production
+
+- consume Maya-owned raw material
+- create finished goods
+- expected vs actual yield
+- scrap/waste where applicable
+- production history and variance alerts
+
+### Sales & credit
+
+- finished-goods sales
+- raw-material sales
+- Paid / Partial / Credit sales
+- automatic stock deduction where applicable
+- customer balances
+- later debt repayments
+
+### Customer-owned material
+
+Customers can bring their own material for ribbing/forming, cutting strips, louvers or other processing.
+
+**Customer-owned material must never deduct Maya inventory.**
+
+The system records pieces/plates worked, charge per piece, customer, payment status and service revenue only.
+
+### Cash Book & Banking
+
+- opening cash carried forward
+- cash received today
+- source breakdown: sales, service work, debt repayments, etc.
+- expenses
+- cash still on hand
+- pending/confirmed banking
+- continuous historical cash archive
+
+Unbanked closing cash carries into the next business day.
+
+### Alerts & Reports
+
+Management activity includes credit sales, debt repayments, banking exceptions, production variances, stocktake differences, expenses and other business flags.
+
+---
+
+## Roles
+
+### Employee
+
+Handles normal operational workflows permitted to staff.
+
+### Admin
+
+The **Admin is the business owner/manager**, with business-level oversight of sales, credit, cash, banking, production, alerts and reports.
+
+### Super Admin
+
+The **Super Admin is the technical/system administrator**, responsible for accounts, roles, password resets, disabling/reactivating users, safe account removal/archiving, system monitoring and troubleshooting.
+
+Admin and Super Admin responsibilities must remain separate.
+
+---
+
+## Authentication & sessions
+
+Supabase Auth is used for login.
+
+Current session behavior:
+
+- sessions persist across normal app closes/reopens and device restarts
+- tokens auto-refresh
+- returning users skip the login form when a valid active session exists
+- temporary network/profile-check failures do not destroy a valid saved session
+- a confirmed inactive/deleted account is forced out
+- active sessions regularly re-check account access so deactivation does not depend on the user voluntarily logging out
+
+Never expose `SUPABASE_SERVICE_ROLE_KEY` in browser/client code or prefix it with `NEXT_PUBLIC_`.
+
+---
+
+## Production hardening completed
+
+### Test-data reset
+
+On 26 Sep 2026, test operational data was cleared while preserving:
+
+- Supabase Auth users
+- Maya `public.users` profiles
+- profile photos/storage
+
+The destructive reset procedure is documented at `scripts/reset-test-business-data.sql` and must not be casually rerun.
+
+### Supabase availability
+
+Maya has a protected database-backed health endpoint:
+
+```text
+/api/health/supabase
+```
+
+GitHub Actions calls it every 6 hours using `.github/workflows/keep-supabase-active.yml`.
+
+UptimeRobot separately monitors the production website every 5 minutes for availability.
+
+### Supabase security
+
+Privileged stock operations were hardened so anonymous/public callers cannot execute them. Privileged implementations were moved behind safer wrappers/private logic, and obsolete multi-branch stock-transfer access was disabled for normal signed-in users.
+
+### Database performance
+
+- missing foreign-key/history indexes were added
+- high-traffic RLS expressions were optimized
+- signed-in profile/session data is cached in memory
+- Maya Branch lookup sets are briefly cached
+- Home, Inventory and Sales independent queries are loaded in parallel
+
+---
+
+## Themes & responsive UX
+
+Users can choose:
+
+- Light
+- Dark
+- Navy
+
+The mobile shell supports:
+
+- safe-area insets for notches/punch-hole cameras
+- dynamic viewport sizing
+- phone/tablet responsive layouts
+- portrait/landscape handling
+- keyboard-aware navigation
+- theme-aware Android system-bar areas
+- iPhone-friendly form sizing to avoid unwanted input zoom
+
+---
+
+## Android
+
+Workflow:
+
+```text
+.github/workflows/build-android-apk.yml
+```
+
+The workflow builds `Maya-Steel-Works.apk` and publishes/replaces the APK in the stable `maya-latest` GitHub Release.
+
+For staff installation, use **Releases**, not old workflow artifacts.
+
+Native changes such as Capacitor plugins, package configuration or Android system behavior require a new APK build. Normal web/business-logic changes are delivered through the live Vercel application and usually do not require reinstalling the APK.
+
+---
+
+## iPhone / iPad
+
+The same Capacitor codebase is validated for iOS using:
+
+```text
+.github/workflows/validate-ios.yml
+```
+
+Unsigned iPhone/iPad simulator compilation currently passes, including the native Capacitor App plugin used for navigation support.
+
+A signed `.ipa` is **not yet published**. Apple signing/provisioning and a distribution path such as TestFlight/App Store are still required.
+
+---
+
+## Desktop
+
+Desktop/laptop users use the responsive production web system:
+
+```text
+https://maya-steel-works-mgt.vercel.app
+```
+
+There is currently no official `.exe` or `.dmg` package. Native desktop installers should only be claimed once actually packaged.
 
 ---
 
 ## Environment variables
 
-Create a `.env.local` file in the project root for local development:
+Local development requires:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_or_publishable_key
-SUPABASE_SERVICE_ROLE_KEY=your_server_side_supabase_secret_key
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_publishable_or_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_server_side_secret
 ```
 
-### Key rules
+Production also uses:
 
-`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are used by the browser-side Supabase client.
+```env
+HEALTHCHECK_SECRET=strong_random_value
+```
 
-`SUPABASE_SERVICE_ROLE_KEY` is used only by protected server-side administration endpoints and must remain secret.
+The matching GitHub Actions secret is:
 
-All three values must belong to the **same Supabase project**.
+```text
+MAYA_HEALTHCHECK_SECRET
+```
 
-For Vercel, configure the same variables under the project's **Environment Variables** settings for the environments you intend to use.
+Never commit secrets to the repository.
 
 ---
 
 ## Local development
 
-### Requirements
-
-- Node.js 22 or compatible version
-- npm
-- Access to the Maya Steel Works Supabase project or a compatible development database
-
-### Install
-
 ```bash
 git clone https://github.com/lumuxav/maya-steel-works.git
 cd maya-steel-works
 npm install
-```
-
-Create `.env.local`, then start the development server:
-
-```bash
 npm run dev
 ```
 
-Open:
-
-```text
-http://localhost:3000
-```
-
-### Production build
+Production build:
 
 ```bash
 npm run build
 npm start
 ```
 
-### Lint
+Lint:
 
 ```bash
 npm run lint
@@ -293,176 +316,42 @@ npm run lint
 
 ---
 
-## Deployment
+## Key data-integrity rules
 
-The production application is deployed through **Vercel**.
-
-### Branch workflow
-
-- `main` — production source of truth
-- `chatgpt-refinement` — preview/testing branch when needed
-
-Production deployments should be based on `main`.
-
-Current production URL:
-
-```text
-https://maya-steel-works-mgt.vercel.app
-```
-
-Before merging major changes into `main`, test the affected workflows using the preview deployment where possible.
-
----
-
-## Android APK
-
-The repository contains a Capacitor configuration for an Android wrapper of the production application.
-
-Android package ID:
-
-```text
-com.mayasteelworks.management
-```
-
-The app connects to:
-
-```text
-https://maya-steel-works-mgt.vercel.app
-```
-
-### Build automatically with GitHub Actions
-
-The workflow is located at:
-
-```text
-.github/workflows/build-android-apk.yml
-```
-
-When the Android packaging files or workflow are updated on `main`, GitHub Actions builds an installable APK.
-
-To download a successful build:
-
-1. Open the repository on GitHub.
-2. Select **Actions**.
-3. Open **Build Android APK**.
-4. Open the latest successful run.
-5. Under **Artifacts**, download **Maya-Steel-Works-APK**.
-6. Extract the downloaded ZIP.
-7. Install `Maya-Steel-Works.apk` on the Android device.
-
-The current workflow produces a **debug-signed APK intended for direct testing/internal installation**. A production release intended for wider distribution should use a securely stored release keystore and a release-signed APK/AAB.
-
----
-
-## PWA installation
-
-The web application also includes PWA support.
-
-On supported Android browsers, users can install Maya Steel Works from the browser's **Install app** / **Add to Home screen** option.
-
-The PWA is configured to avoid intentionally caching private business data for offline use. Offline support is limited to a safe application shell/fallback rather than offline transaction processing.
-
----
-
-## Main project structure
-
-```text
-maya-steel-works/
-├── app/
-│   ├── api/                 # Protected server/API routes
-│   ├── alerts/              # Management activity & alerts
-│   ├── cashbook/            # Cash, expenses and banking
-│   ├── corrections/         # Controlled corrections/audit workflows
-│   ├── customer-work/       # Customer-owned material jobs
-│   ├── deliveries/          # Receiving stock deliveries
-│   ├── inventory/           # Stock and lifecycle history
-│   ├── login/               # Authentication
-│   ├── production/          # Production workflows
-│   ├── reports/             # Management reporting
-│   ├── sales/               # Sales workflows
-│   ├── settings/            # Profile, appearance and preferences
-│   ├── system/              # Super Admin system control
-│   ├── users/               # Super Admin user management
-│   ├── manifest.js          # PWA manifest
-│   ├── layout.js            # Global application shell
-│   └── page.js              # Main dashboard
-├── assets/                  # Branding/mobile assets
-├── lib/                     # Shared Supabase and branch helpers
-├── mobile-shell/            # Capacitor web shell
-├── public/                  # Public/static assets and service worker
-├── .github/workflows/       # CI / Android APK workflow
-├── capacitor.config.json    # Android/Capacitor configuration
-├── next.config.mjs          # Next.js configuration
-├── package.json
-└── README.md
-```
-
----
-
-## Business scope
-
-This installation is intentionally scoped to **Maya Branch**.
-
-The system should not combine or imply knowledge of stock, sales, banking, production or cash activity from other branches unless explicit multi-branch functionality is introduced in the future.
-
-This design keeps the figures shown to staff and management aligned with the operations actually being recorded in this installation.
-
----
-
-## Data integrity principles
-
-Changes to the system should preserve the following rules:
-
-1. Stock must only change through valid stock/production/sales workflows.
-2. Customer-owned material jobs must not reduce Maya-owned inventory.
-3. Credit/debt repayments must be traceable to the customer and cashbook.
-4. Banking must remain distinguishable from cash still on hand.
-5. Unbanked closing cash must be able to carry into the following business day.
-6. Historical records should preserve the responsible user's identity even if that user later leaves the business.
-7. Admin and Super Admin responsibilities must remain separate.
-8. The Supabase server secret must never be exposed to client-side code.
+1. Maya Branch only unless multi-branch support is explicitly reintroduced.
+2. Maya-owned stock sales deduct inventory.
+3. Customer-owned material processing never deducts Maya stock.
+4. Debt repayment is not a new sale.
+5. Debt repayments increase cash on the day received and remain identifiable as debt payments.
+6. Expenses reduce cash-on-hand.
+7. Confirmed banking reduces cash physically held.
+8. Unbanked closing cash carries forward.
+9. Historical user identity must remain available when required for audit records.
+10. Disabled users must lose existing access, not only future login.
+11. Admin = business owner/manager.
+12. Super Admin = technical/system administrator.
+13. Supabase service credentials remain server-side only.
 
 ---
 
 ## Recommended production checks
 
-Before treating a deployment as ready for daily business use, test at least:
+Before broad daily use, test:
 
-- Employee login and permissions
-- Admin login and management views
-- Super Admin login and system controls
-- Receive stock
-- Record a finished-goods sale
-- Record a raw-material sale
-- Record a partial/credit sale
-- Receive a debt repayment
-- Record customer-owned material work
-- Record an expense
-- Record/confirm banking
-- Verify cash carry-forward
-- Check inventory lifecycle history
-- Disable/reactivate a test user
-- Confirm a disabled user's active session loses access
-- Verify theme/mobile responsiveness
-
----
-
-## Security notes
-
-- Do not commit `.env.local` or secret credentials.
-- Keep the Supabase server/service secret only in secure server environment variables.
-- Use HTTPS in production.
-- Review Supabase Row Level Security policies when adding new tables or workflows.
-- Avoid deleting historical business records solely to remove a user account.
-- Use release signing before distributing the Android app outside internal testing.
-
----
-
-## Status
-
-The system is actively developed for Maya Steel Works and currently includes the core workflows required for day-to-day operations, management oversight and system administration.
-
-Future improvements can build on the existing web/PWA/Android architecture without replacing the central business system.
+- Employee/Admin/Super Admin login and permissions
+- persistent login after app close/reopen
+- forced logout after user deactivation
+- receive stock
+- production
+- Paid/Partial/Credit sales
+- debt repayment and cash-source reporting
+- customer-owned material jobs
+- expenses and banking
+- cash carry-forward
+- lifecycle history and stocktake
+- Android Back-button navigation
+- Light/Dark/Navy themes
+- small/large phones and tablets
 
 ---
 
@@ -470,7 +359,7 @@ Future improvements can build on the existing web/PWA/Android architecture witho
 
 This is **private/internal business software** for Maya Steel Works.
 
-No open-source licence is currently provided. Unless a licence is added later, the source code should not be treated as permission for public reuse, redistribution or commercial modification.
+No open-source licence is currently provided. The source should not be treated as permission for public reuse, redistribution or commercial modification unless a licence is explicitly added later.
 
 ---
 
