@@ -3,6 +3,7 @@ import "./globals.css";
 import "./profile-overrides.css";
 import "./preferences.css";
 import AppShell from "./components/AppShell";
+import PwaRegister from "./components/PwaRegister";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,6 +18,16 @@ const geistMono = Geist_Mono({
 export const metadata = {
   title: "Maya Steel Works Management",
   description: "Operations, stock, sales, production and cash management for Maya Steel Works.",
+  applicationName: "Maya Steel Works",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Maya Steel Works",
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: [
       { url: "/icon.svg", type: "image/svg+xml" },
@@ -25,6 +36,13 @@ export const metadata = {
     shortcut: "/icon.svg",
     apple: "/icon.svg",
   },
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#1f3f70",
 };
 
 export default function RootLayout({ children }) {
@@ -52,6 +70,7 @@ export default function RootLayout({ children }) {
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-full">
+        <PwaRegister />
         <AppShell>{children}</AppShell>
       </body>
     </html>
