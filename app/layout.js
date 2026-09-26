@@ -6,6 +6,7 @@ import "./mobile-native.css";
 import AppShell from "./components/AppShell";
 import PwaRegister from "./components/PwaRegister";
 import SystemChrome from "./components/SystemChrome";
+import MobileViewport from "./components/MobileViewport";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,6 +44,7 @@ export const metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 5,
   viewportFit: "cover",
   themeColor: "#f4f6fa",
 };
@@ -73,6 +75,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className="min-h-full">
         <SystemChrome />
+        <MobileViewport />
         <PwaRegister />
         <AppShell>{children}</AppShell>
       </body>
