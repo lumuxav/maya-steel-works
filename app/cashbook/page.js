@@ -100,6 +100,13 @@ export default function CashbookPage() {
   const dayBankings = bankings.filter(b => b.banking_date === selectedDay)
   const openingCash = openingCashForDay(selectedDay)
   const cashIn = collectedOnDay(selectedDay)
+  const daySales = sales.filter(s => inDay(s.created_at, selectedDay))
+  const stockSalesCash = daySales.filter(s => s.item_type !== 'service').reduce((sum, s) => sum + saleTimePaid(s), 0)
+  const serviceSalesCash = daySales.filter(s => s.item_type === 'service').reduce((sum, s) => sum + saleTimePaid(s), 0)
+  const dayDebtPayments = events.filter(e => e.event_type === 'payment' && inDay(e.created_at, selectedDay))
+  const debtPaymentCash = dayDebtPayments.reduce((sum, e) => sum + Number(e.amount), 0)
+  const knownCashSources = stockSalesCash + serviceSalesCash + debtPaymentCash
+  const otherCash = Math.max(0, cashIn - knownCashSources)
   const expTotal = dayExpenses.reduce((s, x) => s + Number(x.amount), 0)
   const bankedConfirmed = dayBankings.filter(b => b.status === 'confirmed').reduce((s, b) => s + Number(b.amount_banked), 0)
   const bankedPending = dayBankings.filter(b => b.status === 'pending').reduce((s, b) => s + Number(b.amount_banked), 0)
@@ -180,12 +187,25 @@ export default function CashbookPage() {
 
       {openingCash > 0 && <div className="mb-5 max-w-3xl rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4"><p className="text-sm font-black text-amber-500">Opening cash carried forward</p><p className="mt-1 text-2xl font-black">{openingCash.toLocaleString()} UGX</p><p className="mt-1 text-xs text-muted">Unbanked cash remaining from previous day(s).</p></div>}
 
-      <div className="mb-8 grid max-w-3xl grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="mb-5 grid max-w-3xl grid-cols-2 gap-4 md:grid-cols-4">
         <div className="page-card p-4"><p className="text-xs text-muted">Cash received today</p><p className="mt-1 text-2xl font-black text-green-500">{cashIn.toLocaleString()}</p></div>
         <div className="page-card p-4"><p className="text-xs text-muted">Expenses</p><p className="mt-1 text-2xl font-black text-red-500">{expTotal.toLocaleString()}</p></div>
         <div className="page-card border-amber-500/30 p-4"><p className="text-xs text-muted">Cash still on hand</p><p className="mt-1 text-2xl font-black text-amber-500">{expectedNow.toLocaleString()}</p></div>
         <div className="page-card p-4"><p className="text-xs text-muted">Banked today</p><p className="mt-1 text-2xl font-black">{(bankedConfirmed + bankedPending).toLocaleString()}</p><p className="mt-1 text-xs text-muted">Confirmed {bankedConfirmed.toLocaleString()} · Pending {bankedPending.toLocaleString()}</p></div>
       </div>
+
+      <section className="mb-8 max-w-3xl">
+        <div className="mb-2 flex items-end justify-between gap-3"><div><h2 className="text-lg font-black">Where the cash came from</h2><p className="mt-1 text-xs text-muted">Breakdown of the {cashIn.toLocaleString()} UGX received on {selectedDay}.</p></div></div>
+        <div className="page-card overflow-hidden">
+          <div className="grid grid-cols-2 gap-px bg-[var(--line)] sm:grid-cols-4">
+            <div className="bg-[var(--panel)] p-4"><p className="text-xs text-muted">Stock sales</p><p className="mt-1 text-lg font-black">{stockSalesCash.toLocaleString()}</p></div>
+            <div className="bg-[var(--panel)] p-4"><p className="text-xs text-muted">Customer material</p><p className="mt-1 text-lg font-black">{serviceSalesCash.toLocaleString()}</p></div>
+            <div className="bg-[var(--panel)] p-4"><p className="text-xs text-muted">Debt repayments</p><p className="mt-1 text-lg font-black text-green-500">{debtPaymentCash.toLocaleString()}</p></div>
+            <div className="bg-[var(--panel)] p-4"><p className="text-xs text-muted">Other cash</p><p className="mt-1 text-lg font-black">{otherCash.toLocaleString()}</p></div>
+          </div>
+          {dayDebtPayments.length > 0 && <div className="border-t border-[var(--line)] p-4 sm:p-5"><div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-black">Debt payments received</h3><Link href="/alerts" className="text-xs font-bold text-green-500">View activity</Link></div><div className="space-y-2">{dayDebtPayments.map(p => <div key={p.id} className="flex items-start justify-between gap-3 rounded-xl bg-[var(--panel-2)] p-3"><div><p className="font-bold">{p.customer_name || 'Customer'}</p><p className="mt-1 text-xs text-muted">{p.sale_id ? `Sale #${p.sale_id}` : 'Account payment / advance'} · received by {userMap[p.received_by]?.full_name || 'staff'} · {new Date(p.created_at).toLocaleTimeString()}</p>{p.notes && <p className="mt-1 text-xs text-muted">{p.notes}</p>}</div><p className="font-black text-green-500">+{Number(p.amount).toLocaleString()}</p></div>)}</div></div>}
+        </div>
+      </section>
 
       <section className="mb-10 max-w-3xl"><h2 className="mb-2 text-lg font-black">Expenses — {selectedDay}</h2><div className="page-card border-red-500/20 p-5">{canEnter && <><form onSubmit={addExpense} className="flex flex-col gap-3 md:flex-row"><input value={expDesc} onChange={(e) => setExpDesc(e.target.value)} required className="input-base flex-1" placeholder="What was the money used for?" /><select value={expCat} onChange={(e) => setExpCat(e.target.value)} className="input-base md:w-40">{categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select><input type="number" step="0.01" value={expAmount} onChange={(e) => setExpAmount(e.target.value)} required className="input-base md:w-36" placeholder="Amount" /><button type="submit" className="rounded-xl bg-red-500 px-4 py-2 font-black text-white">Subtract</button></form>{isAdmin && <div className="mt-3 flex gap-2"><input value={newCat} onChange={(e) => setNewCat(e.target.value)} className="input-base flex-1" placeholder="Add expense category" /><button onClick={addCategory} type="button" className="btn-secondary rounded-xl px-3 font-bold">Add</button></div>}{isSuper && <div className="mt-3 flex flex-wrap gap-2">{categories.map(c => <button key={c.id} type="button" onClick={() => deleteCategory(c.id)} className="rounded-lg border border-[var(--line)] px-2 py-1 text-xs text-muted">{c.name} ×</button>)}</div>}</>}
         <div className="mt-4 space-y-2">{dayExpenses.length === 0 && <p className="py-3 text-center text-sm text-muted">No expenses on this day.</p>}{dayExpenses.map(e => <div key={e.id} className="flex items-center justify-between rounded-xl bg-[var(--panel-2)] p-3"><div><p className="font-bold">{e.description}</p><p className="mt-1 text-xs text-muted">{e.category} · {userMap[e.recorded_by]?.full_name || profile.full_name}</p></div><p className="font-black text-red-500">−{Number(e.amount).toLocaleString()}</p></div>)}</div></div></section>
