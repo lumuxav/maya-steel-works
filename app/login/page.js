@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import { setCachedProfile, clearSessionProfileCache } from '../../lib/sessionCache'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -10,7 +11,46 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [checkingSession, setCheckingSession] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+
+    const restore = async () => {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (!mounted) return
+      if (sessionError || !session) {
+        setCheckingSession(false)
+        return
+      }
+
+      const { data: prof, error: profileError } = await supabase
+        .from('users')
+        .select('full_name, role, branch, active')
+        .eq('id', session.user.id)
+        .maybeSingle()
+
+      if (!mounted) return
+      if (profileError) {
+        setCheckingSession(false)
+        return
+      }
+
+      if (!prof || prof.active === false) {
+        clearSessionProfileCache()
+        await supabase.auth.signOut()
+        setCheckingSession(false)
+        return
+      }
+
+      setCachedProfile(session.user.id, prof)
+      router.replace('/')
+    }
+
+    restore()
+    return () => { mounted = false }
+  }, [router])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -24,20 +64,28 @@ export default function LoginPage() {
       return
     }
 
-    const { data: prof } = await supabase.from('users').select('full_name, role, active').eq('id', data.user.id).single()
+    const { data: prof } = await supabase.from('users').select('full_name, role, branch, active').eq('id', data.user.id).single()
     if (!prof) {
       setError('No staff profile found for this account — contact management.')
+      clearSessionProfileCache()
       await supabase.auth.signOut()
       setLoading(false)
       return
     }
     if (prof.active === false) {
       setError('This account has been deactivated — contact management.')
+      clearSessionProfileCache()
       await supabase.auth.signOut()
       setLoading(false)
       return
     }
+
+    setCachedProfile(data.user.id, prof)
     router.replace('/')
+  }
+
+  if (checkingSession) {
+    return <main className="min-h-screen grid place-items-center px-5 py-8 text-muted" style={{ background: 'var(--bg)' }}>Opening Maya Steel Works...</main>
   }
 
   return (
