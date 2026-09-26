@@ -12,5 +12,12 @@
   "android": {
     "allowMixedContent": false,
     "captureInput": true
+  },
+  "plugins": {
+    "StatusBar": {
+      "overlaysWebView": false,
+      "backgroundColor": "#0b1220",
+      "style": "LIGHT"
+    }
   }
 }
