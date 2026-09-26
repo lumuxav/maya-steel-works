@@ -1,0 +1,16 @@
+{
+  "appId": "com.mayasteelworks.management",
+  "appName": "Maya Steel Works",
+  "webDir": "mobile-shell",
+  "server": {
+    "url": "https://maya-steel-works-mgt.vercel.app",
+    "cleartext": false,
+    "allowNavigation": [
+      "maya-steel-works-mgt.vercel.app"
+    ]
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true
+  }
+}

@@ -1,0 +1,72 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'capacitor.config.json'
+      - 'mobile-shell/**'
+      - 'assets/logo.svg'
+      - '.github/workflows/build-android-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    name: Build Maya Steel Works APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install project dependencies
+        run: npm ci
+
+      - name: Install Android packaging tools
+        run: npm install --no-save @capacitor/core@8 @capacitor/cli@8 @capacitor/android@8 @capacitor/assets@3
+
+      - name: Create Android project
+        run: npx cap add android
+
+      - name: Generate Maya app icon and splash assets
+        run: npx @capacitor/assets generate --android --iconBackgroundColor '#111827' --iconBackgroundColorDark '#111827' --splashBackgroundColor '#1f3f70' --splashBackgroundColorDark '#111827'
+
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+
+      - name: Build directly installable debug APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleDebug
+
+      - name: Prepare APK file
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk Maya-Steel-Works.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Maya-Steel-Works-APK
+          path: Maya-Steel-Works.apk
+          if-no-files-found: error
+          retention-days: 30
