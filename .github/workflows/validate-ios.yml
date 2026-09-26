@@ -45,10 +45,14 @@ jobs:
       - name: Sync Capacitor iOS project
         run: npx cap sync ios
 
+      - name: Inspect generated Xcode project
+        run: |
+          find ios/App -maxdepth 2 \( -name '*.xcodeproj' -o -name '*.xcworkspace' \) -print
+
       - name: Compile unsigned iOS simulator build
         run: |
           xcodebuild \
-            -workspace ios/App/App.xcworkspace \
+            -project ios/App/App.xcodeproj \
             -scheme App \
             -configuration Debug \
             -sdk iphonesimulator \
