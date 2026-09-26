@@ -14,10 +14,11 @@
     "captureInput": true
   },
   "plugins": {
-    "StatusBar": {
-      "overlaysWebView": false,
-      "backgroundColor": "#0b1220",
-      "style": "LIGHT"
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DEFAULT",
+      "hidden": false,
+      "animation": "NONE"
     }
   }
 }

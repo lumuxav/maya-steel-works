@@ -8,6 +8,7 @@ body,
 .app-shell,
 .app-main {
   min-height: 100dvh;
+  background: var(--bg);
 }
 
 @media (max-width: 900px) {
@@ -21,13 +22,14 @@ body,
   .app-mobile-header {
     height: auto;
     min-height: 64px;
-    padding-top: max(10px, env(safe-area-inset-top));
-    padding-left: max(15px, env(safe-area-inset-left));
-    padding-right: max(15px, env(safe-area-inset-right));
+    padding-top: max(10px, var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+    padding-left: max(15px, var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+    padding-right: max(15px, var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
   }
 
   .app-content {
     min-height: 100dvh;
+    padding-bottom: calc(88px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
   }
 
   .page-wrap {
@@ -36,9 +38,9 @@ body,
   }
 
   .app-bottom-nav {
-    left: max(8px, env(safe-area-inset-left));
-    right: max(8px, env(safe-area-inset-right));
-    bottom: max(8px, env(safe-area-inset-bottom));
+    left: max(8px, var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+    right: max(8px, var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
+    bottom: max(8px, var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
   }
 }
 
