@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import { setCachedProfile, clearSessionProfileCache } from '../../lib/sessionCache'
 import ProfileAvatar from './ProfileAvatar'
 
 const Icon = ({ name }) => {
@@ -51,31 +52,44 @@ export default function AppShell({ children }) {
     let channel = null
 
     const forceSignOut = async () => {
+      clearSessionProfileCache()
       try { await supabase.auth.signOut() } catch {}
       window.location.replace('/login?disabled=1')
     }
 
     const checkAccess = async (knownUserId = null) => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return forceSignOut()
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) return
+      if (!session) return window.location.replace('/login')
+
       const id = knownUserId || session.user.id
       if (mounted) setUserId(id)
-      const { data, error } = await supabase.from('users').select('full_name, role, active').eq('id', id).single()
-      if (error || !data || data.active === false) return forceSignOut()
+
+      const { data, error } = await supabase.from('users').select('full_name, role, branch, active').eq('id', id).maybeSingle()
+      if (error) return
+      if (!data || data.active === false) return forceSignOut()
+
+      setCachedProfile(id, data)
       if (mounted) setProfile(data)
     }
 
     const load = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return forceSignOut()
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) return
+      if (!session) return window.location.replace('/login')
+
       const id = session.user.id
+      if (mounted) setUserId(id)
       await checkAccess(id)
 
       channel = supabase
         .channel(`maya-user-access-${id}`)
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${id}` }, (payload) => {
-          if (payload?.new?.active === false) forceSignOut()
-          else if (payload?.new && mounted) setProfile(payload.new)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'users', filter: `id=eq.${id}` }, (payload) => {
+          if (payload.eventType === 'DELETE' || payload?.new?.active === false) return forceSignOut()
+          if (payload?.new) {
+            setCachedProfile(id, payload.new)
+            if (mounted) setProfile(payload.new)
+          }
         })
         .subscribe()
 
@@ -96,7 +110,7 @@ export default function AppShell({ children }) {
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [isLogin])
+  }, [isLogin, userId])
 
   const initials = useMemo(() => {
     const name = profile?.full_name || 'Maya Steel Works'
