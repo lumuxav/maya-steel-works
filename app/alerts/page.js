@@ -26,12 +26,34 @@ export default function AlertsPage() {
       const finishedIds = await getSystemFinishedIds(supabase)
       const events = []
 
-      const { data: sales } = await supabase.from('sales').select('*').order('created_at', { ascending: false }).limit(200)
-      ;(sales || []).filter(s => systemUsers.has(s.sold_by)).forEach(s => {
+      const { data: users } = await supabase.from('users').select('id, full_name')
+      const userMap = Object.fromEntries((users || []).filter(u => systemUsers.has(u.id)).map(u => [u.id, u.full_name]))
+
+      const { data: sales } = await supabase.from('sales').select('*').order('created_at', { ascending: false }).limit(500)
+      const branchSales = (sales || []).filter(s => systemUsers.has(s.sold_by))
+      const branchSaleIds = new Set(branchSales.map(s => s.id))
+      branchSales.forEach(s => {
         if (s.payment_status !== 'paid') {
           const bal = Number(s.total_amount) - Number(s.amount_paid) - (Number(s.adjustments) || 0)
           if (bal > 0.009) events.push({ key: 'sale-' + s.id, time: s.created_at, type: 'Credit sale', tone: 'red', title: `${s.customer_name} owes ${bal.toLocaleString()} UGX`, context: `Maya Branch · ${s.quantity} × ${s.item_label || 'item'} · total ${Number(s.total_amount).toLocaleString()} · paid ${Number(s.amount_paid).toLocaleString()}`, link: `/sales-report?customer=${encodeURIComponent(s.customer_name)}`, linkLabel: 'Open customer debt' })
         }
+      })
+
+      const { data: debtPayments } = await supabase.from('debt_events').select('*').eq('event_type', 'payment').order('created_at', { ascending: false }).limit(500)
+      ;(debtPayments || []).filter(p => (p.sale_id && branchSaleIds.has(p.sale_id)) || (!p.sale_id && systemUsers.has(p.received_by))).forEach(p => {
+        const receiver = userMap[p.received_by] || 'staff'
+        const day = toDayStr(new Date(p.created_at))
+        const saleContext = p.sale_id ? `Applied to sale #${p.sale_id}` : 'Customer account payment / advance'
+        events.push({
+          key: 'debt-payment-' + p.id,
+          time: p.created_at,
+          type: 'Debt payment',
+          tone: 'green',
+          title: `${p.customer_name || 'Customer'} paid ${Number(p.amount).toLocaleString()} UGX`,
+          context: `Maya Branch · ${saleContext} · received by ${receiver}${p.notes ? ` · ${p.notes}` : ''}. This amount is included in cash received for ${day}.`,
+          link: `/sales-report?customer=${encodeURIComponent(p.customer_name || '')}`,
+          linkLabel: 'Open customer account'
+        })
       })
 
       const { data: banks } = await supabase.from('bankings').select('*').order('created_at', { ascending: false }).limit(200)
@@ -53,7 +75,7 @@ export default function AlertsPage() {
       ;(exps || []).filter(e => systemUsers.has(e.recorded_by)).forEach(e => events.push({ key: 'exp-' + e.id, time: e.created_at, type: 'Expense', tone: 'amber', title: `${e.description} · ${Number(e.amount).toLocaleString()} UGX`, context: `Maya Branch · category ${e.category}`, link: `/cashbook?day=${toDayStr(new Date(e.created_at))}`, linkLabel: 'Open cash story' }))
 
       events.sort((a, b) => new Date(b.time) - new Date(a.time))
-      setFeed(events.slice(0, 100)); setLoading(false)
+      setFeed(events.slice(0, 150)); setLoading(false)
     }
     load()
   }, [])
@@ -64,7 +86,7 @@ export default function AlertsPage() {
   const now = new Date(), todayStr = toDayStr(now), yestStr = toDayStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))
   const byDay = {}; feed.forEach(e => { const day = toDayStr(new Date(e.time)); byDay[day] = byDay[day] || []; byDay[day].push(e) })
   const days = Object.keys(byDay).sort().reverse()
-  const toneStyles = { red: 'bg-red-500/10 text-red-500 border-red-500/20', amber: 'bg-amber-500/10 text-amber-600 border-amber-500/20', blue: 'bg-[var(--accent-2)] text-accent border-[var(--line)]' }
+  const toneStyles = { red: 'bg-red-500/10 text-red-500 border-red-500/20', amber: 'bg-amber-500/10 text-amber-600 border-amber-500/20', green: 'bg-green-500/10 text-green-600 border-green-500/20', blue: 'bg-[var(--accent-2)] text-accent border-[var(--line)]' }
 
-  return <main className="page-wrap"><div className="page-header-row"><div><p className="text-xs font-black uppercase tracking-[0.18em] text-amber-500">{SYSTEM_BRANCH}</p><h1 className="page-title">Activity & Alerts</h1><p className="page-subtitle">Only Maya Branch exceptions and business events.</p></div><div className="rounded-full bg-amber-500/10 px-3 py-1.5 text-xs font-black text-amber-500">{feed.length} events</div></div><div className="max-w-4xl space-y-7">{days.length === 0 && <div className="page-card p-8 text-center text-sm text-muted">No Maya Branch activity yet.</div>}{days.map(day => <section key={day}><div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-black">{day === todayStr ? 'Today' : day === yestStr ? 'Yesterday' : day}</h2><span className="text-xs text-muted">{byDay[day].length} event{byDay[day].length === 1 ? '' : 's'}</span></div><div className="space-y-3">{byDay[day].map(e => <article key={e.key} className="page-card overflow-hidden"><button onClick={() => setExpanded(expanded === e.key ? null : e.key)} className="w-full px-4 py-4 text-left sm:px-5"><div className="flex items-start gap-3"><span className={`mt-0.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${toneStyles[e.tone] || toneStyles.blue}`}>{e.type}</span><div className="min-w-0 flex-1"><p className="font-black leading-6">{e.title}</p><p className="mt-1 text-xs text-muted">{new Date(e.time).toLocaleString()}</p></div><span className="text-muted">{expanded === e.key ? '−' : '+'}</span></div></button>{expanded === e.key && <div className="border-t border-[var(--line)] px-4 pb-4 pt-4 sm:px-5"><div className="surface-subtle rounded-2xl p-4 text-sm leading-6 text-muted">{e.context}</div><Link href={e.link} className="mt-3 inline-flex rounded-xl bg-amber-500 px-3.5 py-2.5 text-xs font-black text-slate-950">{e.linkLabel}</Link></div>}</article>)}</div></section>)}</div></main>
+  return <main className="page-wrap"><div className="page-header-row"><div><p className="text-xs font-black uppercase tracking-[0.18em] text-amber-500">{SYSTEM_BRANCH}</p><h1 className="page-title">Activity & Alerts</h1><p className="page-subtitle">Only Maya Branch exceptions and business events, including customer debt repayments.</p></div><div className="rounded-full bg-amber-500/10 px-3 py-1.5 text-xs font-black text-amber-500">{feed.length} events</div></div><div className="max-w-4xl space-y-7">{days.length === 0 && <div className="page-card p-8 text-center text-sm text-muted">No Maya Branch activity yet.</div>}{days.map(day => <section key={day}><div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-black">{day === todayStr ? 'Today' : day === yestStr ? 'Yesterday' : day}</h2><span className="text-xs text-muted">{byDay[day].length} event{byDay[day].length === 1 ? '' : 's'}</span></div><div className="space-y-3">{byDay[day].map(e => <article key={e.key} className="page-card overflow-hidden"><button onClick={() => setExpanded(expanded === e.key ? null : e.key)} className="w-full px-4 py-4 text-left sm:px-5"><div className="flex items-start gap-3"><span className={`mt-0.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${toneStyles[e.tone] || toneStyles.blue}`}>{e.type}</span><div className="min-w-0 flex-1"><p className="font-black leading-6">{e.title}</p><p className="mt-1 text-xs text-muted">{new Date(e.time).toLocaleString()}</p></div><span className="text-muted">{expanded === e.key ? '−' : '+'}</span></div></button>{expanded === e.key && <div className="border-t border-[var(--line)] px-4 pb-4 pt-4 sm:px-5"><div className="surface-subtle rounded-2xl p-4 text-sm leading-6 text-muted">{e.context}</div><Link href={e.link} className="mt-3 inline-flex rounded-xl bg-amber-500 px-3.5 py-2.5 text-xs font-black text-slate-950">{e.linkLabel}</Link></div>}</article>)}</div></section>)}</div></main>
 }
