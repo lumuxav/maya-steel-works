@@ -68,26 +68,57 @@ export async function POST(req) {
   if (check.error) return NextResponse.json({ error: check.error }, { status: check.status || 403 })
 
   const { supabase } = check
-  const { email, password, full_name, role } = await req.json()
-  const requestedRole = ROLES.includes(role) ? role : 'employee'
+  const body = await req.json()
+  const email = String(body.email || '').trim().toLowerCase()
+  const password = String(body.password || '')
+  const fullName = String(body.full_name || '').trim()
+  const requestedRole = ROLES.includes(body.role) ? body.role : 'employee'
 
-  const { data, error } = await supabase.auth.admin.createUser({ email, password, email_confirm: true })
+  if (!email || !fullName || password.length < 6) {
+    return NextResponse.json({ error: 'Name, valid email and a password of at least 6 characters are required.' }, { status: 400 })
+  }
+
+  const { data: existingAuth, error: listError } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 })
+  if (listError) return NextResponse.json({ error: listError.message }, { status: 400 })
+
+  const existing = (existingAuth?.users || []).find((user) => user.email?.toLowerCase() === email)
+  if (existing) {
+    const { data: existingProfile } = await supabase.from('users').select('id, full_name, role, active').eq('id', existing.id).maybeSingle()
+    return NextResponse.json({
+      error: existingProfile
+        ? `An account with ${email} already exists. Refresh the user list instead of creating it again.`
+        : `An Auth account with ${email} already exists but its profile is incomplete. Contact the Super Admin to repair it.`
+    }, { status: 409 })
+  }
+
+  const { data, error } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: {
+      full_name: fullName,
+      role: requestedRole,
+      branch: SYSTEM_BRANCH,
+    }
+  })
+
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  const { error: profileError } = await supabase.from('users').insert({
+  const { error: profileError } = await supabase.from('users').upsert({
     id: data.user.id,
-    full_name,
+    full_name: fullName,
     role: requestedRole,
     branch: SYSTEM_BRANCH,
     active: true
-  })
+  }, { onConflict: 'id' })
 
   if (profileError) {
-    await supabase.auth.admin.deleteUser(data.user.id)
-    return NextResponse.json({ error: profileError.message }, { status: 400 })
+    return NextResponse.json({
+      error: `Auth account was created, but the user profile could not be finalized: ${profileError.message}. Do not create the same email again.`
+    }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, user_id: data.user.id })
 }
 
 export async function PATCH(req) {
