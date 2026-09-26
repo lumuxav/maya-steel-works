@@ -1,0 +1,57 @@
+name: Validate iOS App
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'capacitor.config.json'
+      - 'mobile-shell/**'
+      - 'assets/logo.svg'
+      - '.github/workflows/validate-ios.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-ios:
+    name: Validate Maya Steel Works for iPhone and iPad
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install project dependencies
+        run: npm ci
+
+      - name: Install iOS packaging tools
+        run: npm install --no-save @capacitor/core@8 @capacitor/cli@8 @capacitor/ios@8 @capacitor/assets@3 @capacitor/keyboard@8
+
+      - name: Create iOS project
+        run: npx cap add ios
+
+      - name: Generate iOS app icon and splash assets
+        run: npx @capacitor/assets generate --ios --iconBackgroundColor '#111827' --iconBackgroundColorDark '#111827' --splashBackgroundColor '#1f3f70' --splashBackgroundColorDark '#111827'
+
+      - name: Sync Capacitor iOS project
+        run: npx cap sync ios
+
+      - name: Compile unsigned iOS simulator build
+        run: |
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
