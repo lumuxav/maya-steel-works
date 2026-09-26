@@ -43,7 +43,7 @@ export async function GET(req) {
   const authMap = Object.fromEntries((authData?.users || []).map((user) => [user.id, user]))
   const users = (profiles || []).flatMap((profile) => {
     const auth = authMap[profile.id]
-    if (!auth || auth.deleted_at) return []
+    if (!auth || auth.deleted_at || auth.user_metadata?.maya_deleted === true) return []
     return [{
       ...profile,
       email: auth.email || null,
@@ -72,7 +72,7 @@ export async function POST(req) {
   const { data: existingAuth, error: listError } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 })
   if (listError) return NextResponse.json({ error: listError.message }, { status: 400 })
 
-  const existing = (existingAuth?.users || []).find((user) => !user.deleted_at && user.email?.toLowerCase() === email)
+  const existing = (existingAuth?.users || []).find((user) => user.user_metadata?.maya_deleted !== true && user.email?.toLowerCase() === email)
   if (existing) {
     const { data: existingProfile } = await supabase.from('users').select('id, full_name, role, active').eq('id', existing.id).maybeSingle()
     return NextResponse.json({ error: existingProfile ? `An account with ${email} already exists. Refresh the user list instead of creating it again.` : `An Auth account with ${email} already exists but its profile is incomplete. Contact the Super Admin to repair it.` }, { status: 409 })
@@ -137,43 +137,22 @@ export async function DELETE(req) {
   if (targetError) return NextResponse.json({ error: targetError.message }, { status: 400 })
   if (!target) return NextResponse.json({ error: 'User profile not found.' }, { status: 404 })
 
-  const refs = [
-    ['sales', 'sold_by', 'sales'],
-    ['expenses', 'recorded_by', 'expenses'],
-    ['bankings', 'recorded_by', 'banking records'],
-    ['bankings', 'confirmed_by', 'banking confirmations'],
-    ['debt_events', 'received_by', 'debt/payment records'],
-    ['deliveries', 'received_by', 'deliveries'],
-    ['corrections_log', 'changed_by', 'correction audit records'],
-    ['production_recipes', 'created_by', 'production recipes'],
-    ['expense_categories', 'created_by', 'expense categories'],
-  ]
+  const { data: authData, error: authError } = await supabase.auth.admin.getUserById(user_id)
+  if (authError || !authData?.user) return NextResponse.json({ error: authError?.message || 'Login account not found.' }, { status: 404 })
 
-  const activity = []
-  for (const [table, column, label] of refs) {
-    const { count, error } = await supabase.from(table).select('id', { count: 'exact', head: true }).eq(column, user_id)
-    if (error) return NextResponse.json({ error: `Could not verify ${label}: ${error.message}` }, { status: 500 })
-    if ((count || 0) > 0) activity.push(`${count} ${label}`)
-  }
+  const existingMetadata = authData.user.user_metadata || {}
+  const { error: retireError } = await supabase.auth.admin.updateUserById(user_id, {
+    ban_duration: '876000h',
+    user_metadata: {
+      ...existingMetadata,
+      maya_deleted: true,
+      maya_deleted_at: new Date().toISOString(),
+    },
+  })
+  if (retireError) return NextResponse.json({ error: `Could not permanently revoke the account: ${retireError.message}` }, { status: 400 })
 
-  if (activity.length > 0) {
-    const { error: profileError } = await supabase.from('users').update({ active: false, branch: SYSTEM_BRANCH }).eq('id', user_id)
-    if (profileError) return NextResponse.json({ error: `Could not archive the user profile: ${profileError.message}` }, { status: 500 })
+  const { error: profileError } = await supabase.from('users').update({ active: false, branch: SYSTEM_BRANCH }).eq('id', user_id)
+  if (profileError) return NextResponse.json({ error: `Login access was revoked, but the profile could not be archived: ${profileError.message}` }, { status: 500 })
 
-    const { error: banError } = await supabase.auth.admin.updateUserById(user_id, { ban_duration: '876000h' })
-    if (banError) return NextResponse.json({ error: `Could not revoke login access: ${banError.message}` }, { status: 400 })
-
-    const { error: softDeleteError } = await supabase.auth.admin.deleteUser(user_id, true)
-    if (softDeleteError) return NextResponse.json({ error: `Could not remove the login account: ${softDeleteError.message}` }, { status: 400 })
-
-    return NextResponse.json({ ok: true, archived: true, activity })
-  }
-
-  const { error: authError } = await supabase.auth.admin.deleteUser(user_id)
-  if (authError) return NextResponse.json({ error: `Could not delete the login account: ${authError.message}` }, { status: 400 })
-
-  const { error: profileError } = await supabase.from('users').delete().eq('id', user_id)
-  if (profileError) return NextResponse.json({ error: `Login account was deleted, but the local profile could not be cleaned up: ${profileError.message}` }, { status: 500 })
-
-  return NextResponse.json({ ok: true, archived: false })
+  return NextResponse.json({ ok: true, archived: true })
 }
