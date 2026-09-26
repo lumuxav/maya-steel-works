@@ -17,6 +17,19 @@ It runs as a web application, can be installed as a PWA, and can also be package
 
 ---
 
+## Complete project handover documentation
+
+For full context on the system, business rules, architecture, solved issues, deployment history, Android/iOS work and the decisions made during development, use the project handover:
+
+- **[Download / open the complete Maya Steel Works System Handover PDF](docs/Maya-Steel-Works-System-Handover.pdf)**
+- **[Read the editable handover source](docs/MAYA_SYSTEM_HANDOVER.md)**
+
+The PDF is generated from the Markdown source by `.github/workflows/generate-handover-pdf.yml`, so future project-context updates should be made in `docs/MAYA_SYSTEM_HANDOVER.md` and the PDF will be regenerated automatically.
+
+A future developer or ChatGPT session should read the handover before making significant changes, then inspect the current `main` branch because the code may have advanced since the handover was last updated.
+
+---
+
 ## What the system manages
 
 Maya Steel Works is designed around the actual day-to-day movement of stock, work and money inside the business.
