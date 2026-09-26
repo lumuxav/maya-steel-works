@@ -3,249 +3,98 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
-
-const BRANCHES = ['Maya Branch', 'Mbarara', 'Site / Project']
+import { SYSTEM_BRANCH, isSystemBranch } from '../../lib/branch'
 
 export default function InventoryPage() {
   const [profile, setProfile] = useState(null)
   const [itemType, setItemType] = useState('raw')
-  const [branchView, setBranchView] = useState('Maya Branch')
   const [rawItems, setRawItems] = useState([])
   const [finishedItems, setFinishedItems] = useState([])
   const [expandedGroup, setExpandedGroup] = useState(null)
   const [showGoodsOver, setShowGoodsOver] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin'
-
-  const loadData = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      window.location.href = '/login'
-      return
+  useEffect(() => {
+    const load = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return (window.location.href = '/login')
+      const { data: prof } = await supabase.from('users').select('full_name, role').eq('id', session.user.id).single()
+      setProfile(prof)
+      const admin = prof?.role === 'admin' || prof?.role === 'super_admin'
+      const rawSource = admin ? 'raw_materials_admin_view' : 'raw_materials_employee_view'
+      const { data: raws } = await supabase.from(rawSource).select('*').order('created_at', { ascending: false })
+      setRawItems((raws || []).filter(i => isSystemBranch(i.current_branch)))
+      const { data: fins } = await supabase.from('finished_goods').select('*').order('name')
+      setFinishedItems((fins || []).filter(i => isSystemBranch(i.current_branch)))
+      setLoading(false)
     }
-    const { data: prof } = await supabase.from('users').select('full_name, role, branch').eq('id', session.user.id).single()
-    setProfile(prof)
-    setBranchView(prof?.branch || 'Maya Branch')
-    const admin = prof?.role === 'admin' || prof?.role === 'super_admin'
+    load()
+  }, [])
 
-    const rawSource = admin ? 'raw_materials_admin_view' : 'raw_materials_employee_view'
-    const { data: raws } = await supabase.from(rawSource).select('*').order('created_at', { ascending: false })
-    setRawItems(raws || [])
+  const switchType = (t) => { setItemType(t); setExpandedGroup(null) }
+  const items = itemType === 'raw' ? rawItems : finishedItems
 
-    const { data: fins } = await supabase.from('finished_goods').select('*').order('name')
-    setFinishedItems(fins || [])
+  const groups = {}
+  items.forEach(item => {
+    const key = itemType === 'raw' ? `${item.category}|${item.gauge || ''}|${item.size_dimensions || ''}` : `${item.name}|${item.gauge || ''}|${item.size_dimensions || ''}`
+    if (!groups[key]) groups[key] = {
+      key,
+      label: itemType === 'raw' ? `${item.category} ${item.gauge || ''} ${item.size_dimensions || ''}`.trim() : `${item.name} ${item.gauge || ''} ${item.size_dimensions || ''}`.trim(),
+      unit: item.unit,
+      totalQty: 0,
+      batches: []
+    }
+    groups[key].totalQty += Number(item.quantity)
+    groups[key].batches.push(item)
+  })
 
-    setLoading(false)
-  }
+  const active = Object.values(groups).filter(g => g.totalQty > 0).sort((a, b) => b.totalQty - a.totalQty)
+  const outOfStock = Object.values(groups).filter(g => g.totalQty <= 0).sort((a, b) => a.label.localeCompare(b.label))
 
-  useEffect(() => { loadData() }, [])
-
-  const switchType = (t) => {
-    setItemType(t)
-    setExpandedGroup(null)
-  }
-
-  // ONLY the selected branch's stock enters the grouping
-  const branchItems = (itemType === 'raw' ? rawItems : finishedItems)
-    .filter(i => (i.current_branch || 'Maya Branch') === branchView)
-
-  const groupItems = (items) => {
-    const groups = {}
-    items.forEach(item => {
-      const key = itemType === 'raw'
-        ? `${item.category}|${item.gauge || ''}|${item.size_dimensions || ''}`
-        : `${item.name}|${item.gauge || ''}|${item.size_dimensions || ''}`
-
-      if (!groups[key]) {
-        groups[key] = {
-          key,
-          label: itemType === 'raw'
-            ? `${item.category} ${item.gauge || ''} ${item.size_dimensions || ''}`.trim()
-            : `${item.name} ${item.gauge || ''} ${item.size_dimensions || ''}`.trim(),
-          unit: item.unit,
-          totalQty: 0,
-          batches: [],
-          isOutOfStock: false
-        }
-      }
-      groups[key].totalQty += Number(item.quantity)
-      groups[key].batches.push(item)
-    })
-
-    const active = []
-    const outOfStock = []
-    Object.values(groups).forEach(g => {
-      if (g.totalQty <= 0) {
-        g.isOutOfStock = true
-        outOfStock.push(g)
-      } else {
-        active.push(g)
-      }
-    })
-    active.sort((a, b) => b.totalQty - a.totalQty)
-    outOfStock.sort((a, b) => a.label.localeCompare(b.label))
-    return { active, outOfStock }
-  }
-
-  const { active, outOfStock } = groupItems(branchItems)
-
-  const getBranchColor = (branch) => {
-    if (branch?.toLowerCase().includes('mbarara')) return 'bg-blue-500/20 text-blue-300 border-blue-500/40'
-    if (branch?.toLowerCase().includes('site')) return 'bg-orange-500/20 text-orange-300 border-orange-500/40'
-    return 'bg-green-500/20 text-green-300 border-green-500/40'
-  }
-
-  if (!profile || loading) {
-    return <main className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400">Loading...</main>
-  }
+  if (!profile || loading) return <main className="page-wrap text-muted">Loading inventory...</main>
 
   return (
-    <main className="min-h-screen bg-slate-900 p-4 md:p-6">
-      <header className="flex items-center justify-between mb-6">
+    <main className="page-wrap">
+      <div className="page-header-row">
         <div>
-          <h1 className="text-2xl font-black text-white">📦 Inventory</h1>
-          <p className="text-slate-400 text-sm">Grouped totals with batch-level detail</p>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-500">{SYSTEM_BRANCH}</p>
+          <h1 className="page-title">Inventory</h1>
+          <p className="page-subtitle">Stock physically held at Maya Branch only.</p>
         </div>
-        <Link href="/" className="text-sm text-slate-300 border border-slate-600 rounded-lg px-3 py-1.5 hover:bg-slate-800">← Back</Link>
-      </header>
-
-      {/* BRANCH LENS */}
-      <div className="mb-6 max-w-md">
-        {isAdmin ? (
-          <div>
-            <label className="block text-[10px] text-slate-400 uppercase mb-1">Viewing branch (management can switch)</label>
-            <select value={branchView} onChange={(e) => { setBranchView(e.target.value); setExpandedGroup(null) }}
-              className="w-full rounded-lg bg-slate-700 border border-slate-600 text-white px-3 py-2 text-sm font-bold">
-              {BRANCHES.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
-          </div>
-        ) : (
-          <div className={`inline-block text-xs font-bold px-3 py-2 rounded-lg border ${getBranchColor(branchView)}`}>
-            📍 {branchView} — your branch's stock only
-          </div>
-        )}
+        <Link href="/deliveries" className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-black text-slate-950">Receive stock</Link>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 bg-slate-800 p-1 rounded-lg mb-6 max-w-md">
-        <button onClick={() => switchType('raw')}
-          className={`py-2 rounded-md text-sm font-bold transition ${itemType === 'raw' ? 'bg-amber-500 text-slate-900' : 'text-slate-400 hover:text-white'}`}>
-          Raw Materials
-        </button>
-        <button onClick={() => switchType('finished')}
-          className={`py-2 rounded-md text-sm font-bold transition ${itemType === 'finished' ? 'bg-amber-500 text-slate-900' : 'text-slate-400 hover:text-white'}`}>
-          Finished Goods
-        </button>
+      <div className="mb-6 grid max-w-md grid-cols-2 gap-2 rounded-xl bg-[var(--panel)] p-1">
+        <button onClick={() => switchType('raw')} className={`rounded-lg py-2.5 text-sm font-bold ${itemType === 'raw' ? 'bg-amber-500 text-slate-950' : 'text-muted'}`}>Raw Materials</button>
+        <button onClick={() => switchType('finished')} className={`rounded-lg py-2.5 text-sm font-bold ${itemType === 'finished' ? 'bg-amber-500 text-slate-950' : 'text-muted'}`}>Finished Goods</button>
       </div>
 
-      <div className="space-y-3 mb-8">
-        <h2 className="text-lg font-bold text-white flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-500"></span>
-          Active Stock at {branchView} ({active.length} item types)
-        </h2>
-
-        {active.length === 0 && (
-          <div className="bg-slate-800 rounded-xl p-6 text-center text-slate-500">No active stock at {branchView}.</div>
-        )}
-
+      <div className="mb-8 space-y-3">
+        <div className="flex items-center justify-between"><h2 className="text-lg font-black">Active stock</h2><span className="text-xs text-muted">{active.length} item types</span></div>
+        {active.length === 0 && <div className="page-card p-6 text-center text-sm text-muted">No active stock at {SYSTEM_BRANCH}.</div>}
         {active.map(group => {
-          const isExpanded = expandedGroup === group.key
+          const open = expandedGroup === group.key
           return (
-            <div key={group.key} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-              <button
-                onClick={() => setExpandedGroup(isExpanded ? null : group.key)}
-                className="w-full p-4 flex items-center justify-between hover:bg-slate-700/50 transition text-left"
-              >
-                <div>
-                  <p className="font-bold text-white text-base">{group.label}</p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {group.batches.length} batch{group.batches.length > 1 ? 'es' : ''} at this branch
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-black text-amber-400">{group.totalQty.toLocaleString()}</p>
-                  <p className="text-xs text-slate-400">{group.unit}</p>
-                </div>
+            <div key={group.key} className="page-card overflow-hidden">
+              <button onClick={() => setExpandedGroup(open ? null : group.key)} className="flex w-full items-center justify-between gap-4 p-4 text-left">
+                <div><p className="font-black">{group.label}</p><p className="mt-1 text-xs text-muted">{group.batches.length} batch{group.batches.length === 1 ? '' : 'es'} at Maya Branch</p></div>
+                <div className="text-right"><p className="text-2xl font-black text-amber-500">{group.totalQty.toLocaleString()}</p><p className="text-xs text-muted">{group.unit}</p></div>
               </button>
-
-              {isExpanded && (
-                <div className="border-t border-slate-700 bg-slate-900/50 p-4 space-y-3">
-                  {group.batches.map(batch => (
-                    <div key={batch.id} className="flex items-center justify-between bg-slate-800 rounded-lg p-3 border border-slate-700">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getBranchColor(batch.current_branch)}`}>
-                            {batch.current_branch || 'Maya Branch'}
-                          </span>
-                          <span className="text-xs text-slate-400">
-                            Received {new Date(batch.created_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <p className="text-sm font-semibold text-white">
-                          {batch.quantity.toLocaleString()} {batch.unit}
-                          {batch.is_remnant && <span className="text-xs text-amber-400 ml-2">(Remnant)</span>}
-                        </p>
-                      </div>
-                      <Link
-                        href={`/inventory/history?id=${batch.id}&type=${itemType}`}
-                        className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg font-medium transition"
-                      >
-                        View Lifecycle
-                      </Link>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {open && <div className="border-t border-[var(--line)] p-4 space-y-2">
+                {group.batches.map(batch => <div key={batch.id} className="flex items-center justify-between gap-3 rounded-xl bg-[var(--panel-2)] p-3">
+                  <div><p className="text-sm font-bold">{Number(batch.quantity).toLocaleString()} {batch.unit}</p><p className="mt-1 text-xs text-muted">Received {new Date(batch.created_at).toLocaleDateString()}</p></div>
+                  <Link href={`/inventory/history?id=${batch.id}&type=${itemType}`} className="text-xs font-bold text-amber-500">Lifecycle →</Link>
+                </div>)}
+              </div>}
             </div>
           )
         })}
       </div>
 
-      {outOfStock.length > 0 && (
-        <div className="mb-8">
-          <button
-            onClick={() => setShowGoodsOver(!showGoodsOver)}
-            className="w-full flex items-center justify-between bg-slate-800/50 hover:bg-slate-800 rounded-xl p-4 border border-red-500/30 transition"
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-xl">📦</span>
-              <div className="text-left">
-                <p className="font-bold text-red-400">Goods Over / Out of Stock ({branchView})</p>
-                <p className="text-xs text-slate-400">{outOfStock.length} item types depleted</p>
-              </div>
-            </div>
-            <span className="text-slate-400">{showGoodsOver ? '▲ Hide' : '▼ Show'}</span>
-          </button>
-
-          {showGoodsOver && (
-            <div className="mt-3 space-y-2">
-              {outOfStock.map(group => (
-                <div key={group.key} className="bg-slate-800 rounded-lg border border-red-500/20 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="font-semibold text-slate-300">{group.label}</p>
-                    <span className="text-xs font-bold text-red-400 bg-red-500/10 px-2 py-1 rounded">0 {group.unit}</span>
-                  </div>
-                  <div className="space-y-2">
-                    {group.batches.map(batch => (
-                      <div key={batch.id} className="flex items-center justify-between bg-slate-900/50 rounded p-2 text-xs">
-                        <span className="text-slate-400">
-                          Received {new Date(batch.created_at).toLocaleDateString()}
-                        </span>
-                        <Link
-                          href={`/inventory/history?id=${batch.id}&type=${itemType}`}
-                          className="text-amber-400 hover:text-amber-300 font-medium"
-                        >
-                          See how it finished →
-                        </Link>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {outOfStock.length > 0 && <div>
+        <button onClick={() => setShowGoodsOver(v => !v)} className="page-card flex w-full items-center justify-between p-4 text-left"><div><p className="font-black text-red-500">Out of stock</p><p className="mt-1 text-xs text-muted">{outOfStock.length} depleted item types</p></div><span className="text-muted">{showGoodsOver ? 'Hide' : 'Show'}</span></button>
+        {showGoodsOver && <div className="mt-3 space-y-2">{outOfStock.map(group => <div key={group.key} className="page-card flex items-center justify-between p-3"><span className="text-sm font-bold">{group.label}</span><span className="text-xs font-black text-red-500">0 {group.unit}</span></div>)}</div>}
+      </div>}
     </main>
   )
 }

@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -23,62 +24,53 @@ export default function LoginPage() {
       return
     }
 
-    const { data: prof } = await supabase
-      .from('users')
-      .select('full_name, role, active')
-      .eq('id', data.user.id)
-      .single()
-
+    const { data: prof } = await supabase.from('users').select('full_name, role, active').eq('id', data.user.id).single()
     if (!prof) {
       setError('No staff profile found for this account — contact management.')
       await supabase.auth.signOut()
       setLoading(false)
       return
     }
-
     if (prof.active === false) {
-      setError('🔒 This account has been deactivated — contact management.')
+      setError('This account has been deactivated — contact management.')
       await supabase.auth.signOut()
       setLoading(false)
       return
     }
-
     router.replace('/')
   }
 
   return (
-    <main className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
-      <form onSubmit={handleSubmit} className="bg-slate-800 rounded-xl p-8 w-full max-w-md space-y-5 border border-slate-700">
-        <div className="text-center mb-2">
-          <h1 className="text-2xl font-black text-white">MAYA STEEL WORKS</h1>
-          <p className="text-slate-400 text-sm mt-1">Precision Metal Cutting & Pressing Solutions</p>
+    <main className="min-h-screen grid place-items-center px-5 py-8" style={{ background: 'var(--bg)' }}>
+      <div className="w-full max-w-[390px]">
+        <div className="mb-7 text-center">
+          <div className="app-brand-mark mx-auto mb-4">MS</div>
+          <h1 className="text-2xl font-black tracking-tight">Maya Steel Works</h1>
+          <p className="mt-1 text-sm text-muted">Management System</p>
         </div>
 
-        {error && (
-          <div className="rounded-lg p-3 text-sm bg-red-900/50 text-red-200 border border-red-700">
-            {error}
+        <form onSubmit={handleSubmit} className="page-card p-5 sm:p-6">
+          <div className="mb-5">
+            <h2 className="text-lg font-black">Welcome back</h2>
+            <p className="mt-1 text-sm text-muted">Sign in to continue.</p>
           </div>
-        )}
 
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-            className="w-full rounded-lg bg-slate-700 border border-slate-600 text-white px-3 py-2"
-            placeholder="you@mayasteelworks.com" />
-        </div>
+          {error && <div className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-sm text-red-500" role="alert">{error}</div>}
 
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
-            className="w-full rounded-lg bg-slate-700 border border-slate-600 text-white px-3 py-2"
-            placeholder="••••••••" />
-        </div>
+          <label htmlFor="email" className="mb-2 block text-sm font-bold">Email address</label>
+          <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required className="input-base" placeholder="name@example.com" />
 
-        <button type="submit" disabled={loading}
-          className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-900 font-bold py-3 rounded-lg">
-          {loading ? 'Signing in...' : 'Sign In'}
-        </button>
-      </form>
+          <label htmlFor="password" className="mb-2 mt-4 block text-sm font-bold">Password</label>
+          <div className="relative">
+            <input id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required className="input-base pr-16" placeholder="Enter password" />
+            <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute inset-y-0 right-2 my-auto h-fit rounded-lg px-2 py-1 text-xs font-bold text-muted">{showPassword ? 'Hide' : 'Show'}</button>
+          </div>
+
+          <button type="submit" disabled={loading} className="btn-primary mt-5 w-full rounded-xl px-4 py-3 font-black disabled:opacity-50">{loading ? 'Signing in...' : 'Sign in'}</button>
+        </form>
+
+        <p className="mt-4 text-center text-xs text-muted">Appearance can be changed in Settings after sign in.</p>
+      </div>
     </main>
   )
 }

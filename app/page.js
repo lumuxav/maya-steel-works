@@ -3,20 +3,22 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
+import { SYSTEM_BRANCH, getSystemUserIds, getSystemRawIds, getSystemFinishedIds } from '../lib/branch'
+import ProfileAvatar from './components/ProfileAvatar'
 
 const toDayStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const formatMoney = (value) => Number(value || 0).toLocaleString()
 
 export default function HomePage() {
   const [profile, setProfile] = useState(null)
   const [userId, setUserId] = useState(null)
-  const [entryMode, setEntryMode] = useState(false)
   const [sales, setSales] = useState([])
   const [events, setEvents] = useState([])
   const [bankings, setBankings] = useState([])
   const [runs, setRuns] = useState([])
   const [counts, setCounts] = useState([])
-  const [rawBranches, setRawBranches] = useState({})
-  const [fgBranches, setFgBranches] = useState({})
+  const [rawCount, setRawCount] = useState(0)
+  const [finishedCount, setFinishedCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin'
@@ -24,183 +26,141 @@ export default function HomePage() {
   useEffect(() => {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        window.location.href = '/login'
-        return
-      }
+      if (!session) return (window.location.href = '/login')
       setUserId(session.user.id)
-      const { data: prof } = await supabase.from('users').select('full_name, role').eq('id', session.user.id).single()
+
+      const { data: prof } = await supabase.from('users').select('full_name, role, branch').eq('id', session.user.id).single()
       setProfile(prof)
-      const admin = prof?.role === 'admin' || prof?.role === 'super_admin'
 
-      let q = supabase.from('sales').select('*').limit(500)
-      if (!admin) q = q.eq('sold_by', session.user.id)
-      const { data: s } = await q
-      setSales(s || [])
+      const systemUsers = await getSystemUserIds(supabase)
+      const rawIds = await getSystemRawIds(supabase)
+      const finishedIds = await getSystemFinishedIds(supabase)
 
+      const { data: s } = await supabase.from('sales').select('*').limit(500)
+      const branchSales = (s || []).filter(x => systemUsers.has(x.sold_by))
+      setSales((prof?.role === 'admin' || prof?.role === 'super_admin') ? branchSales : branchSales.filter(x => x.sold_by === session.user.id))
+
+      const saleIds = new Set(branchSales.map(x => x.id))
       const { data: ev } = await supabase.from('debt_events').select('*').eq('event_type', 'payment').limit(400)
-      setEvents(ev || [])
+      setEvents((ev || []).filter(x => (x.sale_id && saleIds.has(x.sale_id)) || (!x.sale_id && systemUsers.has(x.received_by))))
 
       const { data: b } = await supabase.from('bankings').select('*').eq('status', 'pending').limit(100)
-      setBankings(b || [])
+      setBankings((b || []).filter(x => systemUsers.has(x.recorded_by)))
 
       const { data: r } = await supabase.from('production_log').select('*').limit(300)
-      setRuns(r || [])
+      setRuns((r || []).filter(x => rawIds.has(x.raw_material_id) || finishedIds.has(x.finished_good_id)))
 
       const { data: c } = await supabase.from('stocktakes').select('*').neq('difference', 0).limit(100)
-      setCounts(c || [])
+      setCounts((c || []).filter(x => x.item_type === 'raw' ? rawIds.has(x.item_id) : finishedIds.has(x.item_id)))
 
-      const rawSource = admin ? 'raw_materials_admin_view' : 'raw_materials_employee_view'
-      const { data: raws } = await supabase.from(rawSource).select('current_branch, quantity').gt('quantity', 0)
-      const rb = {}
-      ;(raws || []).forEach(x => { rb[x.current_branch || 'Maya Branch'] = (rb[x.current_branch || 'Maya Branch'] || 0) + 1 })
-      setRawBranches(rb)
-
-      const { data: fgs } = await supabase.from('finished_goods').select('current_branch, quantity').gt('quantity', 0)
-      const fb = {}
-      ;(fgs || []).forEach(x => { fb[x.current_branch || 'Maya Branch'] = (fb[x.current_branch || 'Maya Branch'] || 0) + 1 })
-      setFgBranches(fb)
-
+      const { data: raws } = await supabase.from('raw_materials_admin_view').select('id, current_branch, quantity').gt('quantity', 0)
+      setRawCount((raws || []).filter(x => rawIds.has(x.id)).length)
+      const { data: fgs } = await supabase.from('finished_goods').select('id, current_branch, quantity').gt('quantity', 0)
+      setFinishedCount((fgs || []).filter(x => finishedIds.has(x.id)).length)
       setLoading(false)
     }
     load()
   }, [])
 
-  if (!profile || loading) return <main className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400">Loading...</main>
+  if (!profile || loading) return <main className="page-wrap text-muted">Loading dashboard...</main>
 
   const todayStr = toDayStr(new Date())
   const payBySale = {}
-  events.forEach(e => { if (e.sale_id) payBySale[e.sale_id] = (payBySale[e.sale_id] || 0) + Number(e.amount) })
+  events.forEach((e) => { if (e.sale_id) payBySale[e.sale_id] = (payBySale[e.sale_id] || 0) + Number(e.amount) })
   const saleTimePaid = (s) => Math.max(0, Number(s.amount_paid) - (payBySale[s.id] || 0))
-  const cashInToday =
-    sales.filter(s => toDayStr(new Date(s.created_at)) === todayStr).reduce((sum, s) => sum + saleTimePaid(s), 0) +
-    events.filter(e => toDayStr(new Date(e.created_at)) === todayStr).reduce((sum, e) => sum + Number(e.amount), 0)
-
-  const outstanding = sales.reduce((sum, s) => {
-    const bal = Number(s.total_amount) - Number(s.amount_paid) - (Number(s.adjustments) || 0)
-    return sum + Math.max(0, bal)
-  }, 0)
-
+  const cashInToday = sales.filter((s) => toDayStr(new Date(s.created_at)) === todayStr).reduce((sum, s) => sum + saleTimePaid(s), 0) + events.filter((e) => toDayStr(new Date(e.created_at)) === todayStr).reduce((sum, e) => sum + Number(e.amount), 0)
+  const outstanding = sales.reduce((sum, s) => sum + Math.max(0, Number(s.total_amount) - Number(s.amount_paid) - (Number(s.adjustments) || 0)), 0)
   const pendingAmount = bankings.reduce((sum, b) => sum + Number(b.amount_banked), 0)
-  const flaggedProd = runs.filter(r => Number(r.boss_expected_yield) !== Number(r.actual_yield)).length
+  const flaggedProd = runs.filter((r) => Number(r.boss_expected_yield) !== Number(r.actual_yield)).length
   const alertCount = bankings.length + flaggedProd + counts.length
+  const todaySales = sales.filter((s) => toDayStr(new Date(s.created_at)) === todayStr).length
+  const initials = (profile.full_name || 'MS').split(' ').filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase()
 
-  const branches = Array.from(new Set([...Object.keys(rawBranches), ...Object.keys(fgBranches)]))
-
-  const NAV = [
-    { href: '/inventory', icon: '📦', title: 'Inventory', desc: 'Live stock + item history reports' },
-    { href: '/deliveries', icon: '📥', title: 'Receive Delivery', desc: 'Record a truck\'s items at once' },
-    { href: '/sales', icon: '💰', title: 'Record Sale', desc: 'Sell from stock or make & sell' },
-    { href: '/production', icon: '🏭', title: 'Record Production', desc: 'Used vs made vs standard' },
-    { href: '/transfers', icon: '🚚', title: 'Branch Transfers', desc: 'Move stock with head names' },
-    { href: '/stocktake', icon: '📋', title: 'Stocktake', desc: 'Physical count + reports' },
-    { href: '/sales-report', icon: '💳', title: 'Sales & Credit Book', desc: 'Your sales + debtors' },
-    { href: '/cashbook', icon: '🏦', title: 'Cash Book & Banking', desc: 'Expenses + end-of-day banking' }
-  ]
-  const ADMIN_NAV = [
-    { href: '/alerts', icon: '🔔', title: 'Activity & Alerts', desc: 'Day-grouped feed with context' },
-    { href: '/production-report', icon: '📊', title: 'Production Report', desc: 'Standards vs actuals' },
-    { href: '/profit', icon: '📈', title: 'Profit Dashboard', desc: 'Boss eyes only' },
-    { href: '/records', icon: '📚', title: 'Records & Discrepancies', desc: 'The permanent book' },
-    { href: '/corrections', icon: '🛠️', title: 'Corrections', desc: 'Fix wrong entries, logged' }
+  const ops = [
+    ['/inventory', 'Inventory', 'Maya Branch stock', '▦'],
+    ['/deliveries', 'Receive Delivery', 'Incoming materials', '↓'],
+    ['/sales', 'Record Sale', 'Sell Maya-owned stock', '$'],
+    ['/customer-work', 'Customer Material', 'Press, cut or shape customer-owned metal', '🛠'],
+    ['/production', 'Production', 'Output and usage', '⚙'],
+    ['/stocktake', 'Stocktake', 'Physical counts', '✓'],
+    ['/sales-report', 'Sales & Credit', 'Debtors and history', '≡'],
+    ['/cashbook', 'Cash Book', 'Expenses and banking', '¤'],
   ]
 
   return (
-    <main className="min-h-screen bg-slate-900 p-4 md:p-6">
-      <header className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-black text-white">MAYA STEEL WORKS</h1>
-          <p className="text-slate-400 mt-1">Precision Metal Cutting & Pressing Solutions</p>
+    <main className="page-wrap">
+      <section className="home-hero-grid">
+        <div className="home-welcome-card">
+          <p className="page-eyebrow">{SYSTEM_BRANCH}</p>
+          <h1 className="home-greeting">Hi {profile.full_name?.split(' ')[0] || 'there'}!</h1>
+          <p className="page-subtitle">Here’s what’s happening at Maya Steel Works today.</p>
+          <div className="home-quick-row">
+            <Link href="/sales" className="home-quick-action"><span>＋</span><div><strong>New sale</strong><small>Sell Maya stock</small></div></Link>
+            <Link href="/customer-work" className="home-quick-action"><span>🛠</span><div><strong>Customer material</strong><small>Record processing work</small></div></Link>
+          </div>
         </div>
-        <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login' }}
-          className="text-sm text-slate-300 border border-slate-600 rounded-lg px-4 py-2 hover:bg-slate-800">
-          Sign Out
-        </button>
-      </header>
 
-      <div className="bg-slate-800 rounded-xl p-6 mb-6 max-w-3xl">
-        <p className="text-lg text-slate-300">Welcome, <span className="font-bold text-amber-400">{profile.full_name}</span>!</p>
-        <p className="text-slate-400 mt-1">Your role: <span className="font-bold text-white uppercase">{profile.role}</span></p>
-        <p className="text-sm text-slate-500 mt-3">
-          {isAdmin ? 'Boss view: monitor the business flow. Staff do the data entry.' : 'Staff view: record deliveries, sales, production and counts.'}
-        </p>
-      </div>
+        <section className="home-profile-card" aria-label="User profile summary">
+          <ProfileAvatar userId={userId} initials={initials} className="home-profile-avatar" />
+          <div className="home-profile-name">{profile.full_name}</div>
+          <div className="home-profile-role">{profile.role?.replaceAll('_', ' ')}</div>
+          <div className="home-profile-stats">
+            <div><strong>{todaySales}</strong><span>Transactions today</span></div>
+            <div><strong>{rawCount + finishedCount}</strong><span>Active stock types</span></div>
+            <div><strong>{alertCount}</strong><span>Alerts</span></div>
+          </div>
+          <span className="home-profile-note">Profile changes are managed in Settings</span>
+        </section>
+      </section>
 
       {isAdmin && alertCount > 0 && (
-        <Link href="/alerts"
-          className="block mb-6 max-w-3xl rounded-lg p-4 text-sm bg-red-900/60 text-red-100 border-2 border-red-500 font-bold hover:bg-red-900/80">
-          🔔 {alertCount} items need your attention right now (pending bankings, production flags, count differences) — open the Activity & Alerts feed
+        <Link href="/alerts" className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-red-400/25 bg-red-400/10 px-4 py-3.5">
+          <div><p className="font-bold text-red-500">{alertCount} Maya Branch items need attention</p><p className="mt-1 text-xs text-muted">Banking, production or stock differences</p></div><span className="text-muted">→</span>
         </Link>
       )}
 
-      <div className="grid grid-cols-2 gap-4 max-w-3xl mb-6">
-        <Link href="/cashbook" className="bg-slate-800 hover:bg-slate-700 rounded-xl p-5 border border-slate-700 transition">
-          <p className="text-xs text-slate-400 uppercase">Cash in today</p>
-          <p className="text-2xl font-black text-green-400 mt-1">{cashInToday.toLocaleString()}</p>
-          <p className="text-[11px] text-slate-500 mt-2">tap → today's cash story</p>
-        </Link>
-        <Link href="/sales-report?tab=debtors" className="bg-slate-800 hover:bg-slate-700 rounded-xl p-5 border border-red-500/40 transition">
-          <p className="text-xs text-slate-400 uppercase">Outstanding credit</p>
-          <p className="text-2xl font-black text-red-400 mt-1">{outstanding.toLocaleString()}</p>
-          <p className="text-[11px] text-slate-500 mt-2">tap → who owes what & why</p>
-        </Link>
-        <Link href="/cashbook" className="bg-slate-800 hover:bg-slate-700 rounded-xl p-5 border border-amber-500/40 transition">
-          <p className="text-xs text-slate-400 uppercase">Bankings pending</p>
-          <p className="text-2xl font-black text-amber-400 mt-1">{bankings.length} <span className="text-sm">({pendingAmount.toLocaleString()})</span></p>
-          <p className="text-[11px] text-slate-500 mt-2">tap → review & confirm</p>
-        </Link>
-        <Link href="/production-report" className="bg-slate-800 hover:bg-slate-700 rounded-xl p-5 border border-red-500/40 transition">
-          <p className="text-xs text-slate-400 uppercase">Flagged production</p>
-          <p className="text-2xl font-black text-red-400 mt-1">{flaggedProd}</p>
-          <p className="text-[11px] text-slate-500 mt-2">tap → see why each run flagged</p>
-        </Link>
-      </div>
+      <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Link href="/cashbook" className="page-card p-5"><p className="text-sm text-muted">Cash in today</p><p className="metric-value-success mt-3 text-3xl font-black">{formatMoney(cashInToday)}</p><p className="mt-2 text-xs text-muted">Collected at Maya Branch</p></Link>
+        <Link href="/sales-report?tab=debtors" className="page-card p-5"><p className="text-sm text-muted">Outstanding credit</p><p className="metric-value-danger mt-3 text-3xl font-black">{formatMoney(outstanding)}</p><p className="mt-2 text-xs text-muted">Maya Branch customer balances</p></Link>
+        <Link href="/cashbook" className="page-card p-5"><p className="text-sm text-muted">Pending banking</p><p className="metric-value-warning mt-3 text-3xl font-black">{bankings.length}</p><p className="mt-2 text-xs text-muted">{formatMoney(pendingAmount)} awaiting confirmation</p></Link>
+        <Link href="/production-report" className="page-card p-5"><p className="text-sm text-muted">Production flags</p><p className="metric-value-danger mt-3 text-3xl font-black">{flaggedProd}</p><p className="mt-2 text-xs text-muted">Maya Branch output variance</p></Link>
+      </section>
 
-      <div className="bg-slate-800 rounded-xl p-5 max-w-3xl mb-6 border border-slate-700">
-        <p className="text-xs text-slate-400 uppercase mb-3">Stock presence per branch (batches)</p>
-        <div className="space-y-2">
-          {branches.map(b => (
-            <div key={b} className="bg-slate-900/60 rounded-lg p-3">
-              <p className="font-bold text-white">{b}</p>
-              <p className="text-sm text-slate-400 mt-1">{rawBranches[b] || 0} raw batches · {fgBranches[b] || 0} finished batches</p>
+      <section className="mt-8 grid gap-7 xl:grid-cols-[1.5fr_.8fr]">
+        <div>
+          <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-black">Operations</h2><span className="text-xs text-muted">Maya Branch only</span></div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {ops.map(([href, title, desc, icon]) => (
+              <Link key={href} href={href} className="page-card p-4 transition hover:-translate-y-0.5">
+                <div className="settings-row-icon">{icon}</div><p className="mt-4 font-black">{title}</p><p className="mt-1 text-sm text-muted">{desc}</p>
+              </Link>
+            ))}
+          </div>
+
+          {isAdmin && (
+            <div className="mt-8">
+              <h2 className="mb-4 text-lg font-black">Management</h2>
+              <div className="settings-list">
+                {[
+                  ['/alerts','Activity & Alerts'], ['/production-report','Production Report'], ['/profit','Profit Dashboard'], ['/records','Records & Discrepancies'], ['/corrections','Corrections'], ...(profile.role === 'super_admin' ? [['/users','Users & Roles']] : [])
+                ].map(([href, title]) => (
+                  <Link key={href} href={href} className="settings-row"><span className="settings-row-icon">›</span><div><strong>{title}</strong></div><span className="settings-chevron">›</span></Link>
+                ))}
+              </div>
             </div>
-          ))}
+          )}
         </div>
-      </div>
 
-      {isAdmin && (
-        <button onClick={() => setEntryMode(!entryMode)}
-          className="mb-6 text-sm border border-slate-600 text-slate-300 rounded-lg px-4 py-2 hover:bg-slate-800">
-          🔧 Staff Entry Mode (record deliveries / sales / production)
-        </button>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl">
-        {NAV.map(n => (
-          <Link key={n.href} href={n.href}
-            className="bg-slate-800 hover:bg-slate-700 rounded-xl p-5 border border-slate-700 transition">
-            <p className="text-2xl mb-2">{n.icon}</p>
-            <p className="font-bold text-white">{n.title}</p>
-            <p className="text-xs text-slate-400 mt-1">{n.desc}</p>
-          </Link>
-        ))}
-        {isAdmin && ADMIN_NAV.map(n => (
-          <Link key={n.href} href={n.href}
-            className="bg-slate-800 hover:bg-slate-700 rounded-xl p-5 border border-amber-500/30 transition">
-            <p className="text-2xl mb-2">{n.icon}</p>
-            <p className="font-bold text-white">{n.title}</p>
-            <p className="text-xs text-slate-400 mt-1">{n.desc}</p>
-          </Link>
-        ))}
-        {profile.role === 'super_admin' && (
-          <Link href="/users"
-            className="bg-slate-800 hover:bg-slate-700 rounded-xl p-5 border border-purple-500/30 transition">
-            <p className="text-2xl mb-2">👤</p>
-            <p className="font-bold text-white">Users & Roles</p>
-            <p className="text-xs text-slate-400 mt-1">Create staff, roles, deactivate, passwords</p>
-          </Link>
-        )}
-      </div>
+        <aside>
+          <h2 className="mb-4 text-lg font-black">Maya Branch stock</h2>
+          <div className="page-card p-4">
+            <div className="rounded-2xl bg-[var(--panel-2)] p-4">
+              <div className="flex items-center justify-between"><p className="font-black">{SYSTEM_BRANCH}</p><span className="text-xs text-muted">Live</span></div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><p className="text-muted">Raw</p><p className="mt-1 font-black">{rawCount}</p></div><div><p className="text-muted">Finished</p><p className="mt-1 font-black">{finishedCount}</p></div></div>
+            </div>
+          </div>
+        </aside>
+      </section>
     </main>
   )
 }
