@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { SYSTEM_BRANCH, isSystemBranch, getSystemUserIds } from '../../lib/branch'
+import { getSessionProfile } from '../../lib/sessionCache'
 
 export default function SalesPage() {
   const [profile, setProfile] = useState(null)
@@ -31,9 +32,11 @@ export default function SalesPage() {
   const total = qty && price ? Number(qty) * Number(price) : 0
 
   const loadToday = async (session, admin) => {
-    const systemUsers = await getSystemUserIds(supabase)
     const start = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).toISOString()
-    const { data } = await supabase.from('sales').select('*').gte('created_at', start).order('created_at', { ascending: false })
+    const [systemUsers, { data }] = await Promise.all([
+      getSystemUserIds(supabase),
+      supabase.from('sales').select('*').gte('created_at', start).order('created_at', { ascending: false }),
+    ])
     const branchRows = (data || []).filter(x => systemUsers.has(x.sold_by))
     setTodaySales(admin ? branchRows : branchRows.filter(x => x.sold_by === session.user.id))
   }
@@ -50,18 +53,21 @@ export default function SalesPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
+      const { session, profile: prof } = await getSessionProfile()
       if (!session) return (window.location.href = '/login')
-      const { data: prof } = await supabase.from('users').select('full_name, role, branch').eq('id', session.user.id).single()
       setProfile(prof)
       const admin = prof?.role === 'admin' || prof?.role === 'super_admin'
-      const { data: fgs } = await supabase.from('finished_goods').select('*').gt('quantity', 0).order('name')
-      setFinished((fgs || []).filter(i => isSystemBranch(i.current_branch)))
       const source = admin ? 'raw_materials_admin_view' : 'raw_materials_employee_view'
-      const { data: rws } = await supabase.from(source).select('*').gt('quantity', 0).order('created_at', { ascending: false })
-      setRaws((rws || []).filter(i => isSystemBranch(i.current_branch)))
-      const { data: recs } = await supabase.from('production_recipes').select('*')
-      setRecipes(recs || [])
+
+      const [fgsRes, rwsRes, recsRes] = await Promise.all([
+        supabase.from('finished_goods').select('*').gt('quantity', 0).order('name'),
+        supabase.from(source).select('*').gt('quantity', 0).order('created_at', { ascending: false }),
+        supabase.from('production_recipes').select('*'),
+      ])
+
+      setFinished((fgsRes.data || []).filter(i => isSystemBranch(i.current_branch)))
+      setRaws((rwsRes.data || []).filter(i => isSystemBranch(i.current_branch)))
+      setRecipes(recsRes.data || [])
       loadToday(session, admin)
     }
     load()
