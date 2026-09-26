@@ -7,6 +7,7 @@ import AppShell from "./components/AppShell";
 import PwaRegister from "./components/PwaRegister";
 import SystemChrome from "./components/SystemChrome";
 import MobileViewport from "./components/MobileViewport";
+import NativeBackNavigation from "./components/NativeBackNavigation";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -76,6 +77,7 @@ export default function RootLayout({ children }) {
       <body className="min-h-full">
         <SystemChrome />
         <MobileViewport />
+        <NativeBackNavigation />
         <PwaRegister />
         <AppShell>{children}</AppShell>
       </body>
