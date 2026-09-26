@@ -16,6 +16,7 @@ export default function UsersPage() {
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('employee')
   const [message, setMessage] = useState(null)
+  const [rowMessages, setRowMessages] = useState({})
   const [busy, setBusy] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -62,38 +63,48 @@ export default function UsersPage() {
 
   const changeRole = async (u, newRole) => {
     const r = await callApi('PATCH', { user_id: u.id, role: newRole })
-    if (!r.ok) setMessage({ type: 'error', text: r.error || 'Could not change role.' })
-    else { setMessage({ type: 'success', text: `${u.full_name} is now ${prettyRole(newRole)}.` }); load() }
+    if (!r.ok) setRowMessages(m => ({ ...m, [u.id]: { type: 'error', text: r.error || 'Could not change role.' } }))
+    else {
+      setRowMessages(m => ({ ...m, [u.id]: { type: 'success', text: `${u.full_name} is now ${prettyRole(newRole)}.` } }))
+      load()
+    }
   }
 
   const toggleActive = async (u) => {
     const r = await callApi('PATCH', { user_id: u.id, active: u.active === false })
-    if (!r.ok) setMessage({ type: 'error', text: r.error || 'Could not update access.' })
-    else { setMessage({ type: 'success', text: `${u.full_name} ${u.active === false ? 'reactivated' : 'disabled'}.` }); load() }
+    if (!r.ok) setRowMessages(m => ({ ...m, [u.id]: { type: 'error', text: r.error || 'Could not update access.' } }))
+    else {
+      setRowMessages(m => ({ ...m, [u.id]: { type: 'success', text: `${u.full_name} ${u.active === false ? 'reactivated' : 'disabled'}.` } }))
+      load()
+    }
   }
 
   const resetPassword = async (u) => {
     const np = window.prompt(`Set a new password for ${u.full_name} (minimum 6 characters):`)
     if (!np) return
     const r = await callApi('PATCH', { user_id: u.id, password: np })
-    setMessage(r.ok ? { type: 'success', text: `Password reset for ${u.full_name}.` } : { type: 'error', text: r.error || 'Could not reset password.' })
+    setRowMessages(m => ({
+      ...m,
+      [u.id]: r.ok ? { type: 'success', text: `Password reset for ${u.full_name}.` } : { type: 'error', text: r.error || 'Could not reset password.' }
+    }))
   }
 
   const deleteUser = async (u) => {
     if (u.id === profile.id) return
-    const first = window.confirm(`Permanently delete ${u.full_name}?\n\nThis removes their login completely. If they have business history, the system will block deletion and ask you to disable them instead.`)
+    const first = window.confirm(`Delete ${u.full_name}?\n\nThis removes their login. If they have business history, their historical identity will be preserved internally so old records stay traceable.`)
     if (!first) return
-    const confirmText = window.prompt(`Type DELETE to permanently remove ${u.full_name}:`)
+    const confirmText = window.prompt(`Type DELETE to remove ${u.full_name}:`)
     if (confirmText !== 'DELETE') return
 
     setDeletingId(u.id)
-    setMessage(null)
+    setRowMessages(m => ({ ...m, [u.id]: null }))
     const r = await callApi('DELETE', { user_id: u.id })
     if (r.ok) {
-      setMessage({ type: 'success', text: `${u.full_name} was permanently deleted.` })
-      await load()
+      setRowMessages(m => ({ ...m, [u.id]: { type: 'success', text: r.archived ? `${u.full_name} was removed from active users and their old business history was preserved.` : `${u.full_name} was permanently deleted.` } }))
+      setUsers(current => current.filter(x => x.id !== u.id))
+      setTimeout(() => load(), 500)
     } else {
-      setMessage({ type: 'error', text: r.error || 'Could not delete user.' })
+      setRowMessages(m => ({ ...m, [u.id]: { type: 'error', text: r.error || 'Could not delete user.' } }))
     }
     setDeletingId(null)
   }
@@ -147,6 +158,7 @@ export default function UsersPage() {
                   <button onClick={() => deleteUser(u)} type="button" disabled={u.id === profile.id || deletingId === u.id} className="rounded-xl border border-red-500/40 px-3 py-2 text-xs font-bold text-red-500 transition hover:bg-red-500/10 disabled:opacity-30">{deletingId === u.id ? 'Deleting...' : 'Delete'}</button>
                 </div>
               </div>
+              {rowMessages[u.id] && <div className={`mt-3 rounded-xl border px-3 py-2 text-xs ${rowMessages[u.id].type === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500' : 'border-red-500/30 bg-red-500/10 text-red-500'}`}>{rowMessages[u.id].text}</div>}
             </article>
           ))}
         </div>
