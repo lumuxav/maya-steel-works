@@ -5,13 +5,44 @@ import { supabase } from '../../lib/supabase'
 import ThemePicker from '../components/ThemePicker'
 import ProfileAvatar, { avatarStorageKey } from '../components/ProfileAvatar'
 
+const DISPLAY_KEY = 'maya-display-preferences'
+const notificationKey = (userId) => `maya-notification-preferences:${userId || 'guest'}`
+
+const DEFAULT_DISPLAY = {
+  density: 'comfortable',
+  reducedMotion: false,
+  numberFormat: 'full',
+  dateFormat: 'dd/mm/yyyy',
+}
+
+const DEFAULT_NOTIFICATIONS = {
+  browser: false,
+  banking: true,
+  stock: true,
+  production: true,
+}
+
 function RowIcon({ children }) {
   return <span className="settings-row-icon">{children}</span>
 }
 
+function Toggle({ checked, onChange, disabled = false, label }) {
+  return (
+    <button
+      type="button"
+      className={`pref-toggle ${checked ? 'pref-toggle-on' : ''}`}
+      onClick={() => !disabled && onChange(!checked)}
+      disabled={disabled}
+      aria-pressed={checked}
+      aria-label={label}
+    >
+      <span />
+    </button>
+  )
+}
+
 const compressProfilePhoto = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader()
-
   reader.onerror = () => reject(new Error('Could not read that image.'))
   reader.onload = () => {
     const image = new Image()
@@ -21,15 +52,12 @@ const compressProfilePhoto = (file) => new Promise((resolve, reject) => {
         const size = Math.min(image.width, image.height)
         const sx = Math.max(0, (image.width - size) / 2)
         const sy = Math.max(0, (image.height - size) / 2)
-        const outputSize = 512
-
         const canvas = document.createElement('canvas')
-        canvas.width = outputSize
-        canvas.height = outputSize
+        canvas.width = 512
+        canvas.height = 512
         const ctx = canvas.getContext('2d')
         if (!ctx) throw new Error('Image processing is not supported on this device.')
-
-        ctx.drawImage(image, sx, sy, size, size, 0, 0, outputSize, outputSize)
+        ctx.drawImage(image, sx, sy, size, size, 0, 0, 512, 512)
         resolve(canvas.toDataURL('image/jpeg', 0.82))
       } catch (error) {
         reject(error)
@@ -37,7 +65,6 @@ const compressProfilePhoto = (file) => new Promise((resolve, reject) => {
     }
     image.src = reader.result
   }
-
   reader.readAsDataURL(file)
 })
 
@@ -46,6 +73,10 @@ export default function SettingsPage() {
   const [userId, setUserId] = useState(null)
   const [photoMessage, setPhotoMessage] = useState('')
   const [photoBusy, setPhotoBusy] = useState(false)
+  const [openPanel, setOpenPanel] = useState(null)
+  const [display, setDisplay] = useState(DEFAULT_DISPLAY)
+  const [notifications, setNotifications] = useState(DEFAULT_NOTIFICATIONS)
+  const [notificationStatus, setNotificationStatus] = useState('')
   const fileRef = useRef(null)
 
   useEffect(() => {
@@ -55,6 +86,13 @@ export default function SettingsPage() {
       setUserId(session.user.id)
       const { data } = await supabase.from('users').select('full_name, role').eq('id', session.user.id).single()
       setProfile(data || null)
+
+      try {
+        const savedDisplay = JSON.parse(localStorage.getItem(DISPLAY_KEY) || '{}')
+        setDisplay({ ...DEFAULT_DISPLAY, ...savedDisplay })
+        const savedNotifications = JSON.parse(localStorage.getItem(notificationKey(session.user.id)) || '{}')
+        setNotifications({ ...DEFAULT_NOTIFICATIONS, ...savedNotifications })
+      } catch {}
     }
     load()
   }, [])
@@ -75,22 +113,11 @@ export default function SettingsPage() {
   const savePhoto = async (file) => {
     if (!file || !userId) return
     setPhotoMessage('')
-
-    if (!file.type.startsWith('image/')) {
-      setPhotoMessage('Please choose an image file.')
-      if (fileRef.current) fileRef.current.value = ''
-      return
-    }
-
-    if (file.size > 15 * 1024 * 1024) {
-      setPhotoMessage('That image is too large. Please choose one smaller than 15 MB.')
-      if (fileRef.current) fileRef.current.value = ''
-      return
-    }
+    if (!file.type.startsWith('image/')) return setPhotoMessage('Please choose an image file.')
+    if (file.size > 15 * 1024 * 1024) return setPhotoMessage('That image is too large. Please choose one smaller than 15 MB.')
 
     setPhotoBusy(true)
     setPhotoMessage('Preparing photo...')
-
     try {
       const compressed = await compressProfilePhoto(file)
       localStorage.setItem(avatarStorageKey(userId), compressed)
@@ -112,6 +139,59 @@ export default function SettingsPage() {
     setPhotoMessage('Profile photo removed.')
   }
 
+  const saveDisplay = (changes) => {
+    const next = { ...display, ...changes }
+    setDisplay(next)
+    localStorage.setItem(DISPLAY_KEY, JSON.stringify(next))
+    document.documentElement.dataset.density = next.density
+    document.documentElement.dataset.motion = next.reducedMotion ? 'reduced' : 'normal'
+    window.dispatchEvent(new CustomEvent('maya-display-change', { detail: next }))
+  }
+
+  const saveNotifications = (changes) => {
+    const next = { ...notifications, ...changes }
+    setNotifications(next)
+    if (userId) localStorage.setItem(notificationKey(userId), JSON.stringify(next))
+  }
+
+  const toggleBrowserNotifications = async (enabled) => {
+    setNotificationStatus('')
+    if (!enabled) {
+      saveNotifications({ browser: false })
+      return
+    }
+    if (!('Notification' in window)) {
+      setNotificationStatus('This browser does not support notifications.')
+      return
+    }
+    const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission()
+    if (permission === 'granted') {
+      saveNotifications({ browser: true })
+      setNotificationStatus('Browser notifications enabled on this device.')
+    } else {
+      saveNotifications({ browser: false })
+      setNotificationStatus('Notification permission was not granted.')
+    }
+  }
+
+  const testNotification = () => {
+    if (!('Notification' in window) || Notification.permission !== 'granted') {
+      setNotificationStatus('Enable browser notifications first.')
+      return
+    }
+    new Notification('Maya Steel Works', {
+      body: 'Notifications are working on this device.',
+      icon: '/icon.svg',
+    })
+    setNotificationStatus('Test notification sent.')
+  }
+
+  const numberPreview = display.numberFormat === 'compact'
+    ? new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(1250000)
+    : new Intl.NumberFormat('en-US').format(1250000)
+
+  const datePreview = display.dateFormat === 'mm/dd/yyyy' ? '09/26/2026' : '26/09/2026'
+
   return (
     <main className="page-wrap">
       <div className="page-header-row">
@@ -128,9 +208,7 @@ export default function SettingsPage() {
           <h2>{profile?.full_name || 'Maya Steel Works User'}</h2>
           <p>{profile?.role || 'staff'}</p>
           <div className="settings-photo-actions">
-            <button type="button" onClick={choosePhoto} disabled={photoBusy} className="settings-photo-button disabled:opacity-60">
-              {photoBusy ? 'Updating...' : 'Change photo'}
-            </button>
+            <button type="button" onClick={choosePhoto} disabled={photoBusy} className="settings-photo-button disabled:opacity-60">{photoBusy ? 'Updating...' : 'Change photo'}</button>
             <button type="button" onClick={removePhoto} disabled={photoBusy} className="settings-photo-button settings-photo-button-subtle disabled:opacity-60">Remove</button>
           </div>
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => savePhoto(e.target.files?.[0])} />
@@ -141,10 +219,7 @@ export default function SettingsPage() {
       <section className="settings-section">
         <h3>Appearance</h3>
         <div className="settings-appearance-card">
-          <div>
-            <strong>Theme</strong>
-            <p>Choose how Maya Steel Works looks on this device.</p>
-          </div>
+          <div><strong>Theme</strong><p>Choose how Maya Steel Works looks on this device.</p></div>
           <ThemePicker />
         </div>
       </section>
@@ -152,21 +227,50 @@ export default function SettingsPage() {
       <section className="settings-section">
         <h3>Preferences</h3>
         <div className="settings-list">
-          <div className="settings-row">
+          <button type="button" className="settings-row" onClick={() => setOpenPanel(openPanel === 'notifications' ? null : 'notifications')}>
             <RowIcon>◎</RowIcon>
-            <div><strong>Notifications</strong><p>Alert and activity preferences</p></div>
-            <span className="settings-badge">Coming soon</span>
-          </div>
-          <div className="settings-row">
+            <div><strong>Notifications</strong><p>Choose which alerts can notify you on this device</p></div>
+            <span className="settings-chevron">{openPanel === 'notifications' ? '⌄' : '›'}</span>
+          </button>
+          {openPanel === 'notifications' && (
+            <div className="preference-panel">
+              <div className="preference-control"><div><strong>Browser notifications</strong><p>Allow Maya Steel Works to send device notifications while supported by your browser.</p></div><Toggle checked={notifications.browser} onChange={toggleBrowserNotifications} label="Browser notifications" /></div>
+              <div className="preference-control"><div><strong>Banking alerts</strong><p>Keep banking and cash-control alerts enabled.</p></div><Toggle checked={notifications.banking} onChange={(v) => saveNotifications({ banking: v })} label="Banking alerts" /></div>
+              <div className="preference-control"><div><strong>Stock alerts</strong><p>Keep stocktake and inventory warnings enabled.</p></div><Toggle checked={notifications.stock} onChange={(v) => saveNotifications({ stock: v })} label="Stock alerts" /></div>
+              <div className="preference-control"><div><strong>Production alerts</strong><p>Keep production variance warnings enabled.</p></div><Toggle checked={notifications.production} onChange={(v) => saveNotifications({ production: v })} label="Production alerts" /></div>
+              <div className="preference-actions"><button type="button" className="btn-secondary pref-button" onClick={testNotification}>Send test notification</button><span>{notificationStatus}</span></div>
+            </div>
+          )}
+
+          <button type="button" className="settings-row" onClick={() => setOpenPanel(openPanel === 'display' ? null : 'display')}>
             <RowIcon>▣</RowIcon>
-            <div><strong>Display & data</strong><p>Number formatting and dashboard preferences</p></div>
-            <span className="settings-chevron">›</span>
-          </div>
-          <div className="settings-row">
+            <div><strong>Display & data</strong><p>Layout density, motion and number/date display</p></div>
+            <span className="settings-chevron">{openPanel === 'display' ? '⌄' : '›'}</span>
+          </button>
+          {openPanel === 'display' && (
+            <div className="preference-panel">
+              <div className="preference-control"><div><strong>Compact layout</strong><p>Show more information on screen with tighter spacing.</p></div><Toggle checked={display.density === 'compact'} onChange={(v) => saveDisplay({ density: v ? 'compact' : 'comfortable' })} label="Compact layout" /></div>
+              <div className="preference-control"><div><strong>Reduced motion</strong><p>Minimize movement and transition effects across the app.</p></div><Toggle checked={display.reducedMotion} onChange={(v) => saveDisplay({ reducedMotion: v })} label="Reduced motion" /></div>
+              <div className="preference-choice"><div><strong>Number display</strong><p>Preview: {numberPreview} UGX</p></div><select className="input-base pref-select" value={display.numberFormat} onChange={(e) => saveDisplay({ numberFormat: e.target.value })}><option value="full">1,250,000</option><option value="compact">1.3M</option></select></div>
+              <div className="preference-choice"><div><strong>Date format</strong><p>Preview: {datePreview}</p></div><select className="input-base pref-select" value={display.dateFormat} onChange={(e) => saveDisplay({ dateFormat: e.target.value })}><option value="dd/mm/yyyy">DD/MM/YYYY</option><option value="mm/dd/yyyy">MM/DD/YYYY</option></select></div>
+              <p className="preference-note">Layout and motion apply immediately. Number/date preferences are saved on this device for reports and formatted views that use the shared preference.</p>
+            </div>
+          )}
+
+          <button type="button" className="settings-row" onClick={() => setOpenPanel(openPanel === 'help' ? null : 'help')}>
             <RowIcon>?</RowIcon>
-            <div><strong>Help</strong><p>System guidance and support</p></div>
-            <span className="settings-chevron">›</span>
-          </div>
+            <div><strong>Help</strong><p>System guidance and common troubleshooting</p></div>
+            <span className="settings-chevron">{openPanel === 'help' ? '⌄' : '›'}</span>
+          </button>
+          {openPanel === 'help' && (
+            <div className="preference-panel help-panel">
+              <details><summary>How do I record a normal sale?</summary><p>Open Sales, choose Finished Goods or Raw Materials, select the item, enter quantity and unit price, then choose Paid, Partial or Credit.</p></details>
+              <details><summary>How do I record work on customer-owned metal?</summary><p>Open Customer Material. Select the service, enter plates or pieces worked, charge per plate/piece and payment status. Maya stock is not deducted.</p></details>
+              <details><summary>What happens to cash that is not banked before closing?</summary><p>Unbanked cash carries forward automatically as opening cash for the following day until it is actually banked.</p></details>
+              <details><summary>Who can see profits and business reports?</summary><p>The Admin is the business owner and can see the business reports. Super Admin can inspect the full system for monitoring and troubleshooting.</p></details>
+              <details><summary>What should I do if a transaction fails?</summary><p>Do not repeat the same action many times. Take a screenshot of the exact error and check whether stock, cash or the user record already changed before retrying.</p></details>
+            </div>
+          )}
         </div>
       </section>
 

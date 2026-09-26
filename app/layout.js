@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./profile-overrides.css";
+import "./preferences.css";
 import AppShell from "./components/AppShell";
 
 const geistSans = Geist({
@@ -31,8 +32,13 @@ export default function RootLayout({ children }) {
     try {
       const saved = localStorage.getItem('maya-theme') || 'light';
       document.documentElement.dataset.theme = saved;
+      const display = JSON.parse(localStorage.getItem('maya-display-preferences') || '{}');
+      document.documentElement.dataset.density = display.density || 'comfortable';
+      document.documentElement.dataset.motion = display.reducedMotion ? 'reduced' : 'normal';
     } catch (e) {
       document.documentElement.dataset.theme = 'light';
+      document.documentElement.dataset.density = 'comfortable';
+      document.documentElement.dataset.motion = 'normal';
     }
   `;
 
