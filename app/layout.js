@@ -2,6 +2,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./profile-overrides.css";
 import "./preferences.css";
+import "./mobile-native.css";
 import AppShell from "./components/AppShell";
 import PwaRegister from "./components/PwaRegister";
 
