@@ -17,14 +17,10 @@ export default function UsersPage() {
   const [role, setRole] = useState('employee')
   const [message, setMessage] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  const callApi = async (method, body) => {
-    return adminApi('/api/admin/users', {
-      method,
-      body: body ? JSON.stringify(body) : undefined,
-    })
-  }
+  const callApi = async (method, body) => adminApi('/api/admin/users', { method, body: body ? JSON.stringify(body) : undefined })
 
   const load = async () => {
     setLoading(true)
@@ -33,10 +29,7 @@ export default function UsersPage() {
 
     const { data: prof } = await supabase.from('users').select('*').eq('id', session.user.id).single()
     setProfile(prof)
-    if (prof?.role !== 'super_admin') {
-      setLoading(false)
-      return
-    }
+    if (prof?.role !== 'super_admin') { setLoading(false); return }
 
     const result = await callApi('GET')
     if (result.ok) {
@@ -61,42 +54,48 @@ export default function UsersPage() {
     const r = await callApi('POST', { email, password, full_name: fullName, role })
     if (r.ok) {
       setMessage({ type: 'success', text: `${fullName} created as ${prettyRole(role)}.` })
-      setFullName('')
-      setEmail('')
-      setPassword('')
-      setRole('employee')
+      setFullName(''); setEmail(''); setPassword(''); setRole('employee')
       await load()
-    } else {
-      setMessage({ type: 'error', text: r.error || 'Could not create user.' })
-    }
+    } else setMessage({ type: 'error', text: r.error || 'Could not create user.' })
     setBusy(false)
   }
 
   const changeRole = async (u, newRole) => {
     const r = await callApi('PATCH', { user_id: u.id, role: newRole })
     if (!r.ok) setMessage({ type: 'error', text: r.error || 'Could not change role.' })
-    else {
-      setMessage({ type: 'success', text: `${u.full_name} is now ${prettyRole(newRole)}.` })
-      load()
-    }
+    else { setMessage({ type: 'success', text: `${u.full_name} is now ${prettyRole(newRole)}.` }); load() }
   }
 
   const toggleActive = async (u) => {
     const r = await callApi('PATCH', { user_id: u.id, active: u.active === false })
     if (!r.ok) setMessage({ type: 'error', text: r.error || 'Could not update access.' })
-    else {
-      setMessage({ type: 'success', text: `${u.full_name} ${u.active === false ? 'reactivated' : 'disabled'}.` })
-      load()
-    }
+    else { setMessage({ type: 'success', text: `${u.full_name} ${u.active === false ? 'reactivated' : 'disabled'}.` }); load() }
   }
 
   const resetPassword = async (u) => {
     const np = window.prompt(`Set a new password for ${u.full_name} (minimum 6 characters):`)
     if (!np) return
     const r = await callApi('PATCH', { user_id: u.id, password: np })
-    setMessage(r.ok
-      ? { type: 'success', text: `Password reset for ${u.full_name}.` }
-      : { type: 'error', text: r.error || 'Could not reset password.' })
+    setMessage(r.ok ? { type: 'success', text: `Password reset for ${u.full_name}.` } : { type: 'error', text: r.error || 'Could not reset password.' })
+  }
+
+  const deleteUser = async (u) => {
+    if (u.id === profile.id) return
+    const first = window.confirm(`Permanently delete ${u.full_name}?\n\nThis removes their login completely. If they have business history, the system will block deletion and ask you to disable them instead.`)
+    if (!first) return
+    const confirmText = window.prompt(`Type DELETE to permanently remove ${u.full_name}:`)
+    if (confirmText !== 'DELETE') return
+
+    setDeletingId(u.id)
+    setMessage(null)
+    const r = await callApi('DELETE', { user_id: u.id })
+    if (r.ok) {
+      setMessage({ type: 'success', text: `${u.full_name} was permanently deleted.` })
+      await load()
+    } else {
+      setMessage({ type: 'error', text: r.error || 'Could not delete user.' })
+    }
+    setDeletingId(null)
   }
 
   if (!profile || loading) return <main className="page-wrap text-muted">Loading users...</main>
@@ -107,9 +106,7 @@ export default function UsersPage() {
 
   return (
     <main className="page-wrap">
-      <div className="page-header-row">
-        <div><p className="page-eyebrow">System administration</p><h1 className="page-title">Users & Access</h1><p className="page-subtitle">Manage accounts, roles and passwords without exposing stored passwords.</p></div>
-      </div>
+      <div className="page-header-row"><div><p className="page-eyebrow">System administration</p><h1 className="page-title">Users & Access</h1><p className="page-subtitle">Manage accounts, roles and passwords without exposing stored passwords.</p></div></div>
 
       {message && <div className={`mb-5 max-w-4xl rounded-xl border px-4 py-3 text-sm ${message.type === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500' : 'border-red-500/30 bg-red-500/10 text-red-500'}`}>{message.text}</div>}
 
@@ -147,6 +144,7 @@ export default function UsersPage() {
                   <select value={u.role} onChange={(e) => changeRole(u, e.target.value)} disabled={u.id === profile.id} className="input-base !w-auto !py-2 text-xs disabled:opacity-50">{ROLES.map(r => <option key={r} value={r}>{prettyRole(r)}</option>)}</select>
                   <button onClick={() => resetPassword(u)} type="button" className="btn-secondary rounded-xl px-3 py-2 text-xs font-bold">Reset password</button>
                   <button onClick={() => toggleActive(u)} type="button" disabled={u.id === profile.id} className={`rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-40 ${u.active === false ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>{u.active === false ? 'Reactivate' : 'Disable'}</button>
+                  <button onClick={() => deleteUser(u)} type="button" disabled={u.id === profile.id || deletingId === u.id} className="rounded-xl border border-red-500/40 px-3 py-2 text-xs font-bold text-red-500 transition hover:bg-red-500/10 disabled:opacity-30">{deletingId === u.id ? 'Deleting...' : 'Delete'}</button>
                 </div>
               </div>
             </article>
