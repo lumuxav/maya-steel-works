@@ -14,6 +14,7 @@ export default function CashbookPage() {
   const [userId, setUserId] = useState(null)
   const [entryMode, setEntryMode] = useState(false)
   const [selectedDay, setSelectedDay] = useState(todayStr)
+  const [systemStartDay, setSystemStartDay] = useState(todayStr)
   const [sales, setSales] = useState([])
   const [expenses, setExpenses] = useState([])
   const [bankings, setBankings] = useState([])
@@ -43,8 +44,11 @@ export default function CashbookPage() {
     setProfile(prof)
 
     const systemUsers = await getSystemUserIds(supabase)
-    const { data: users } = await supabase.from('users').select('id, full_name, branch')
-    setUserMap(Object.fromEntries((users || []).filter(u => systemUsers.has(u.id)).map(u => [u.id, u])))
+    const { data: users } = await supabase.from('users').select('id, full_name, branch, created_at')
+    const systemProfiles = (users || []).filter(u => systemUsers.has(u.id))
+    setUserMap(Object.fromEntries(systemProfiles.map(u => [u.id, u])))
+    const createdDays = systemProfiles.map(u => u.created_at).filter(Boolean).map(value => toDayStr(new Date(value))).sort()
+    if (createdDays.length) setSystemStartDay(createdDays[0])
 
     const { data: s } = await supabase.from('sales').select('*').order('created_at', { ascending: false }).limit(1000)
     const branchSales = (s || []).filter(x => systemUsers.has(x.sold_by))
@@ -104,12 +108,16 @@ export default function CashbookPage() {
   const willFlag = bankVariance !== null && Math.abs(bankVariance) >= TOLERANCE
   const flaggedPending = bankings.filter(b => b.flagged && b.status === 'pending')
 
-  const daySet = new Set([todayStr])
-  sales.forEach(s => daySet.add(toDayStr(new Date(s.created_at))))
-  visibleExpenses.forEach(e => daySet.add(toDayStr(new Date(e.created_at))))
-  bankings.forEach(b => daySet.add(b.banking_date))
-  events.forEach(e => daySet.add(toDayStr(new Date(e.created_at))))
-  const archiveDays = Array.from(daySet).sort().reverse().slice(0, 60)
+  const archiveDays = []
+  const [startY, startM, startD] = systemStartDay.split('-').map(Number)
+  const [endY, endM, endD] = todayStr.split('-').map(Number)
+  const cursor = new Date(startY, startM - 1, startD)
+  const endDate = new Date(endY, endM - 1, endD)
+  while (cursor <= endDate) {
+    archiveDays.push(toDayStr(cursor))
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  archiveDays.reverse()
 
   const daySummary = (day) => {
     const open = openingCashForDay(day)
@@ -185,7 +193,7 @@ export default function CashbookPage() {
       <section className="mb-10 max-w-3xl"><h2 className="mb-2 text-lg font-black">Banking — {selectedDay}</h2><div className="page-card border-green-500/20 p-5"><div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm"><span className="text-muted">Available to bank now:</span> <strong className="text-amber-500">{expectedNow.toLocaleString()} UGX</strong></div>{canEnter && <form onSubmit={addBanking} className="space-y-3"><div className="flex flex-col gap-3 md:flex-row"><input type="date" value={bankDate} onChange={(e) => setBankDate(e.target.value)} className="input-base md:w-44" /><input type="number" step="0.01" value={bankAmount} onChange={(e) => setBankAmount(e.target.value)} required className="input-base flex-1" placeholder="Amount banked" /><input value={bankMethod} onChange={(e) => setBankMethod(e.target.value)} className="input-base flex-1" placeholder="Bank / MoMo / Cash box" /></div><input value={bankNotes} onChange={(e) => setBankNotes(e.target.value)} className="input-base" placeholder="Notes (optional)" />{bankVariance !== null && <div className={`rounded-xl p-3 text-sm font-bold ${Math.abs(bankVariance) < TOLERANCE ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{Math.abs(bankVariance) < TOLERANCE ? 'Matches cash on hand exactly.' : `Difference ${bankVariance.toLocaleString()} UGX — this will be flagged.`}</div>}<button type="submit" className={`w-full rounded-xl py-3 font-black ${willFlag ? 'bg-red-500 text-white' : 'bg-amber-500 text-slate-950'}`}>{willFlag ? 'Submit flagged banking' : 'Submit banking'}</button></form>}
         <div className="mt-4 space-y-2">{dayBankings.length === 0 && <p className="py-3 text-center text-sm text-muted">No bankings on this day.</p>}{dayBankings.map(b => <div key={b.id} className={`rounded-xl border p-3 ${b.flagged ? 'border-red-500/40 bg-red-500/5' : 'border-[var(--line)] bg-[var(--panel-2)]'}`}><div className="flex items-center justify-between gap-3"><strong>{Number(b.amount_banked).toLocaleString()} UGX</strong><span className={b.status === 'confirmed' ? 'text-green-500' : 'text-amber-500'}>{b.status}</span></div><p className="mt-1 text-xs text-muted">{b.bank_or_method || 'No method'} · {userMap[b.recorded_by]?.full_name || 'staff'}</p>{isAdmin && b.status === 'pending' && <button onClick={() => confirmBanking(b)} className="mt-2 rounded-lg bg-green-500 px-3 py-1.5 text-xs font-black text-slate-950">Confirm</button>}</div>)}</div></div></section>
 
-      <section className="max-w-3xl"><h2 className="mb-3 text-lg font-black">Day-by-day archive</h2><div className="space-y-2">{archiveDays.map(day => { const sum = daySummary(day); return <button key={day} onClick={() => { setSelectedDay(day); setBankDate(day) }} className={`page-card w-full p-4 text-left ${day === selectedDay ? 'border-amber-500/40' : ''}`}><div className="flex items-center justify-between gap-3"><div><p className="font-black">{day === todayStr ? 'TODAY — ' : ''}{day}</p><p className="mt-1 text-xs text-muted">Opening {sum.open.toLocaleString()} · Received {sum.cIn.toLocaleString()} · Expenses {sum.eT.toLocaleString()} · Banked {sum.bT.toLocaleString()}</p></div><div className="text-right"><p className="text-xs text-muted">Closing cash</p><p className="font-black text-amber-500">{sum.closing.toLocaleString()}</p>{sum.flags > 0 && <p className="text-xs text-red-500">{sum.flags} flag(s)</p>}</div></div></button> })}</div></section>
+      <section className="max-w-3xl"><h2 className="mb-1 text-lg font-black">Day-by-day archive</h2><p className="mb-3 text-xs text-muted">Complete cash history from the first day the Maya system became active. Days without transactions are included so carried-forward cash remains traceable.</p><div className="space-y-2">{archiveDays.map(day => { const sum = daySummary(day); return <button key={day} onClick={() => { setSelectedDay(day); setBankDate(day) }} className={`page-card w-full p-4 text-left ${day === selectedDay ? 'border-amber-500/40' : ''}`}><div className="flex items-center justify-between gap-3"><div><p className="font-black">{day === todayStr ? 'TODAY — ' : ''}{day}</p><p className="mt-1 text-xs text-muted">Opening {sum.open.toLocaleString()} · Received {sum.cIn.toLocaleString()} · Expenses {sum.eT.toLocaleString()} · Banked {sum.bT.toLocaleString()}</p></div><div className="text-right"><p className="text-xs text-muted">Closing cash</p><p className="font-black text-amber-500">{sum.closing.toLocaleString()}</p>{sum.flags > 0 && <p className="text-xs text-red-500">{sum.flags} flag(s)</p>}</div></div></button> })}</div></section>
     </main>
   )
 }
