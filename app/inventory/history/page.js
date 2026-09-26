@@ -6,11 +6,11 @@ import { supabase } from '../../../lib/supabase'
 import { SYSTEM_BRANCH, isSystemBranch } from '../../../lib/branch'
 
 const MOVE_STYLE = {
-  received: { icon: '📥', color: 'border-green-500/40 bg-green-900/10 text-green-300' },
-  sold: { icon: '💰', color: 'border-amber-500/40 bg-amber-900/10 text-amber-300' },
-  used_in_production: { icon: '🏭', color: 'border-purple-500/40 bg-purple-900/10 text-purple-300' },
-  produced: { icon: '✅', color: 'border-blue-500/40 bg-blue-900/10 text-blue-300' },
-  stocktake_adjustment: { icon: '📋', color: 'border-red-500/40 bg-red-900/10 text-red-300' }
+  received: { icon: '📥', card: 'border-green-500/35 bg-green-500/10', accent: 'text-green-600' },
+  sold: { icon: '💰', card: 'border-amber-500/35 bg-amber-500/10', accent: 'text-amber-600' },
+  used_in_production: { icon: '🏭', card: 'border-purple-500/35 bg-purple-500/10', accent: 'text-purple-600' },
+  produced: { icon: '✅', card: 'border-blue-500/35 bg-blue-500/10', accent: 'text-blue-600' },
+  stocktake_adjustment: { icon: '📋', card: 'border-red-500/35 bg-red-500/10', accent: 'text-red-600' }
 }
 
 export default function HistoryPage() {
@@ -64,7 +64,7 @@ export default function HistoryPage() {
 
   return <main className="page-wrap">
     <div className="page-header-row"><div><p className="text-xs font-black uppercase tracking-[0.18em] text-amber-500">{SYSTEM_BRANCH}</p><h1 className="page-title">Lifecycle Report</h1><p className="page-subtitle">{label}</p></div><Link href="/inventory" className="btn-secondary rounded-xl px-3 py-2 text-sm font-bold">Inventory</Link></div>
-    {item && <div className="page-card mb-6 max-w-2xl p-4"><div className="flex flex-wrap gap-5 text-sm"><span className="text-muted">Current stock: <strong className="text-amber-500">{item.quantity} {item.unit}</strong></span><span className="text-muted">Location: <strong>{SYSTEM_BRANCH}</strong></span><span className="text-muted">Events: <strong>{moves.length}</strong></span></div></div>}
-    <div className="max-w-2xl space-y-3">{moves.length === 0 && <div className="page-card p-6 text-center text-sm text-muted">No Maya Branch movements recorded for this batch.</div>}{moves.map(m => { const style = MOVE_STYLE[m.movement_type] || { icon: '•', color: 'border-[var(--line)] bg-[var(--panel)] text-[var(--text)]' }; return <div key={m.id} className={`rounded-xl border p-4 ${style.color}`}><div className="flex items-center justify-between"><p className="text-xs font-bold uppercase tracking-wide">{style.icon} {String(m.movement_type).replace(/_/g,' ')}</p><p className={`text-lg font-black ${Number(m.quantity_change) >= 0 ? 'text-green-400' : 'text-red-400'}`}>{Number(m.quantity_change) > 0 ? '+' : ''}{m.quantity_change}</p></div>{m.notes && <p className="mt-2 text-xs opacity-80">{m.notes}</p>}<p className="mt-2 text-[10px] opacity-60">{new Date(m.created_at).toLocaleString()}</p></div>})}</div>
+    {item && <div className="page-card mb-6 max-w-2xl p-4"><div className="flex flex-wrap gap-5 text-sm"><span className="text-muted">Current stock: <strong className="text-amber-500">{item.quantity} {item.unit}</strong></span><span className="text-muted">Location: <strong className="text-[var(--text)]">{SYSTEM_BRANCH}</strong></span><span className="text-muted">Events: <strong className="text-[var(--text)]">{moves.length}</strong></span></div></div>}
+    <div className="max-w-2xl space-y-3">{moves.length === 0 && <div className="page-card p-6 text-center text-sm text-muted">No Maya Branch movements recorded for this batch.</div>}{moves.map(m => { const style = MOVE_STYLE[m.movement_type] || { icon: '•', card: 'border-[var(--line)] bg-[var(--panel)]', accent: 'text-accent' }; const positive = Number(m.quantity_change) >= 0; return <div key={m.id} className={`rounded-xl border p-4 ${style.card}`}><div className="flex items-center justify-between gap-3"><p className={`text-xs font-black uppercase tracking-wide ${style.accent}`}>{style.icon} {String(m.movement_type).replace(/_/g,' ')}</p><p className={`text-lg font-black ${positive ? 'text-green-600' : 'text-red-600'}`}>{Number(m.quantity_change) > 0 ? '+' : ''}{m.quantity_change}</p></div>{m.notes && <p className="mt-2 text-sm font-medium leading-5 text-[var(--text)]">{m.notes}</p>}<p className="mt-2 text-xs font-medium text-muted">{new Date(m.created_at).toLocaleString()}</p></div>})}</div>
   </main>
 }
