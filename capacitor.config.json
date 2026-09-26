@@ -19,6 +19,11 @@
       "style": "DEFAULT",
       "hidden": false,
       "animation": "NONE"
+    },
+    "Keyboard": {
+      "resize": "body",
+      "resizeOnFullScreen": true,
+      "autoBackdropColor": "dom"
     }
   }
 }
