@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 import { SYSTEM_BRANCH, getSystemUserIds, getSystemRawIds, getSystemFinishedIds } from '../lib/branch'
+import { getSessionProfile } from '../lib/sessionCache'
 import ProfileAvatar from './components/ProfileAvatar'
 
 const toDayStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -25,39 +26,38 @@ export default function HomePage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return (window.location.href = '/login')
-      setUserId(session.user.id)
+      try {
+        const { session, profile: prof } = await getSessionProfile()
+        if (!session) return (window.location.href = '/login')
+        setUserId(session.user.id)
+        setProfile(prof)
 
-      const { data: prof } = await supabase.from('users').select('full_name, role, branch').eq('id', session.user.id).single()
-      setProfile(prof)
+        const [systemUsers, rawIds, finishedIds, salesRes, eventsRes, banksRes, runsRes, countsRes, rawsRes, fgsRes] = await Promise.all([
+          getSystemUserIds(supabase),
+          getSystemRawIds(supabase),
+          getSystemFinishedIds(supabase),
+          supabase.from('sales').select('*').limit(500),
+          supabase.from('debt_events').select('*').eq('event_type', 'payment').limit(400),
+          supabase.from('bankings').select('*').eq('status', 'pending').limit(100),
+          supabase.from('production_log').select('*').limit(300),
+          supabase.from('stocktakes').select('*').neq('difference', 0).limit(100),
+          supabase.from('raw_materials_admin_view').select('id, current_branch, quantity').gt('quantity', 0),
+          supabase.from('finished_goods').select('id, current_branch, quantity').gt('quantity', 0),
+        ])
 
-      const systemUsers = await getSystemUserIds(supabase)
-      const rawIds = await getSystemRawIds(supabase)
-      const finishedIds = await getSystemFinishedIds(supabase)
+        const branchSales = (salesRes.data || []).filter(x => systemUsers.has(x.sold_by))
+        setSales((prof?.role === 'admin' || prof?.role === 'super_admin') ? branchSales : branchSales.filter(x => x.sold_by === session.user.id))
 
-      const { data: s } = await supabase.from('sales').select('*').limit(500)
-      const branchSales = (s || []).filter(x => systemUsers.has(x.sold_by))
-      setSales((prof?.role === 'admin' || prof?.role === 'super_admin') ? branchSales : branchSales.filter(x => x.sold_by === session.user.id))
-
-      const saleIds = new Set(branchSales.map(x => x.id))
-      const { data: ev } = await supabase.from('debt_events').select('*').eq('event_type', 'payment').limit(400)
-      setEvents((ev || []).filter(x => (x.sale_id && saleIds.has(x.sale_id)) || (!x.sale_id && systemUsers.has(x.received_by))))
-
-      const { data: b } = await supabase.from('bankings').select('*').eq('status', 'pending').limit(100)
-      setBankings((b || []).filter(x => systemUsers.has(x.recorded_by)))
-
-      const { data: r } = await supabase.from('production_log').select('*').limit(300)
-      setRuns((r || []).filter(x => rawIds.has(x.raw_material_id) || finishedIds.has(x.finished_good_id)))
-
-      const { data: c } = await supabase.from('stocktakes').select('*').neq('difference', 0).limit(100)
-      setCounts((c || []).filter(x => x.item_type === 'raw' ? rawIds.has(x.item_id) : finishedIds.has(x.item_id)))
-
-      const { data: raws } = await supabase.from('raw_materials_admin_view').select('id, current_branch, quantity').gt('quantity', 0)
-      setRawCount((raws || []).filter(x => rawIds.has(x.id)).length)
-      const { data: fgs } = await supabase.from('finished_goods').select('id, current_branch, quantity').gt('quantity', 0)
-      setFinishedCount((fgs || []).filter(x => finishedIds.has(x.id)).length)
-      setLoading(false)
+        const saleIds = new Set(branchSales.map(x => x.id))
+        setEvents((eventsRes.data || []).filter(x => (x.sale_id && saleIds.has(x.sale_id)) || (!x.sale_id && systemUsers.has(x.received_by))))
+        setBankings((banksRes.data || []).filter(x => systemUsers.has(x.recorded_by)))
+        setRuns((runsRes.data || []).filter(x => rawIds.has(x.raw_material_id) || finishedIds.has(x.finished_good_id)))
+        setCounts((countsRes.data || []).filter(x => x.item_type === 'raw' ? rawIds.has(x.item_id) : finishedIds.has(x.item_id)))
+        setRawCount((rawsRes.data || []).filter(x => rawIds.has(x.id)).length)
+        setFinishedCount((fgsRes.data || []).filter(x => finishedIds.has(x.id)).length)
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [])
