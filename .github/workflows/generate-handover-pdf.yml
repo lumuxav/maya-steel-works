@@ -1,0 +1,48 @@
+name: Generate Project Handover PDF
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/MAYA_SYSTEM_HANDOVER.md'
+      - 'scripts/generate-handover-pdf.py'
+      - '.github/workflows/generate-handover-pdf.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  generate-pdf:
+    name: Build Maya system handover PDF
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PDF dependency
+        run: python -m pip install --upgrade reportlab
+
+      - name: Generate PDF
+        run: python scripts/generate-handover-pdf.py
+
+      - name: Commit generated PDF
+        shell: bash
+        run: |
+          if git diff --quiet -- docs/Maya-Steel-Works-System-Handover.pdf && git ls-files --error-unmatch docs/Maya-Steel-Works-System-Handover.pdf >/dev/null 2>&1; then
+            echo 'PDF already up to date.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/Maya-Steel-Works-System-Handover.pdf
+          git commit -m 'Update Maya system handover PDF [skip ci]'
+          git push
