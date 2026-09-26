@@ -95,6 +95,14 @@ export async function PATCH(req) {
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   }
 
+  if (active !== undefined) {
+    const shouldActivate = Boolean(active)
+    const { error: authAccessError } = await supabase.auth.admin.updateUserById(user_id, {
+      ban_duration: shouldActivate ? 'none' : '876000h'
+    })
+    if (authAccessError) return NextResponse.json({ error: `Could not ${shouldActivate ? 'reactivate' : 'disable'} login access: ${authAccessError.message}` }, { status: 400 })
+  }
+
   const profileChanges = {}
   if (role !== undefined) {
     if (!ROLES.includes(role)) return NextResponse.json({ error: 'Invalid role.' }, { status: 400 })
