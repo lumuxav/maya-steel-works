@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { SYSTEM_BRANCH, isSystemBranch } from '../../lib/branch'
+import { getSessionProfile } from '../../lib/sessionCache'
 
 export default function InventoryPage() {
   const [profile, setProfile] = useState(null)
@@ -16,17 +17,23 @@ export default function InventoryPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return (window.location.href = '/login')
-      const { data: prof } = await supabase.from('users').select('full_name, role').eq('id', session.user.id).single()
-      setProfile(prof)
-      const admin = prof?.role === 'admin' || prof?.role === 'super_admin'
-      const rawSource = admin ? 'raw_materials_admin_view' : 'raw_materials_employee_view'
-      const { data: raws } = await supabase.from(rawSource).select('*').order('created_at', { ascending: false })
-      setRawItems((raws || []).filter(i => isSystemBranch(i.current_branch)))
-      const { data: fins } = await supabase.from('finished_goods').select('*').order('name')
-      setFinishedItems((fins || []).filter(i => isSystemBranch(i.current_branch)))
-      setLoading(false)
+      try {
+        const { session, profile: prof } = await getSessionProfile()
+        if (!session) return (window.location.href = '/login')
+        setProfile(prof)
+        const admin = prof?.role === 'admin' || prof?.role === 'super_admin'
+        const rawSource = admin ? 'raw_materials_admin_view' : 'raw_materials_employee_view'
+
+        const [{ data: raws }, { data: fins }] = await Promise.all([
+          supabase.from(rawSource).select('*').order('created_at', { ascending: false }),
+          supabase.from('finished_goods').select('*').order('name'),
+        ])
+
+        setRawItems((raws || []).filter(i => isSystemBranch(i.current_branch)))
+        setFinishedItems((fins || []).filter(i => isSystemBranch(i.current_branch)))
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [])
