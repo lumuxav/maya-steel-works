@@ -1,0 +1,37 @@
+name: Keep Supabase Active
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  ping-production-database:
+    name: Ping Maya production database
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check required secret
+        shell: bash
+        env:
+          HEALTHCHECK_SECRET: ${{ secrets.MAYA_HEALTHCHECK_SECRET }}
+        run: |
+          if [ -z "$HEALTHCHECK_SECRET" ]; then
+            echo "MAYA_HEALTHCHECK_SECRET is not configured in GitHub Actions secrets."
+            exit 1
+          fi
+
+      - name: Query Maya health endpoint
+        shell: bash
+        env:
+          HEALTHCHECK_SECRET: ${{ secrets.MAYA_HEALTHCHECK_SECRET }}
+        run: |
+          RESPONSE="$(curl --fail --silent --show-error --retry 3 --retry-delay 10 \
+            -H "Authorization: Bearer $HEALTHCHECK_SECRET" \
+            https://maya-steel-works-mgt.vercel.app/api/health/supabase)"
+          echo "$RESPONSE"
+          echo "$RESPONSE" | grep -q '"ok":true'
