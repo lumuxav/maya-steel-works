@@ -19,6 +19,16 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+.app-brand-mark {
+  background-image: url('/icon.svg') !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  overflow: hidden;
+}
+
 input,
 select,
 textarea,
