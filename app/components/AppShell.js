@@ -47,15 +47,55 @@ export default function AppShell({ children }) {
   useEffect(() => {
     if (isLogin) return
     let mounted = true
+    let intervalId = null
+    let channel = null
+
+    const forceSignOut = async () => {
+      try { await supabase.auth.signOut() } catch {}
+      window.location.replace('/login?disabled=1')
+    }
+
+    const checkAccess = async (knownUserId = null) => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return forceSignOut()
+      const id = knownUserId || session.user.id
+      if (mounted) setUserId(id)
+      const { data, error } = await supabase.from('users').select('full_name, role, active').eq('id', id).single()
+      if (error || !data || data.active === false) return forceSignOut()
+      if (mounted) setProfile(data)
+    }
+
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-      if (mounted) setUserId(session.user.id)
-      const { data } = await supabase.from('users').select('full_name, role').eq('id', session.user.id).single()
-      if (mounted) setProfile(data || null)
+      if (!session) return forceSignOut()
+      const id = session.user.id
+      await checkAccess(id)
+
+      channel = supabase
+        .channel(`maya-user-access-${id}`)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${id}` }, (payload) => {
+          if (payload?.new?.active === false) forceSignOut()
+          else if (payload?.new && mounted) setProfile(payload.new)
+        })
+        .subscribe()
+
+      intervalId = window.setInterval(() => checkAccess(id), 15000)
     }
+
+    const onFocus = () => checkAccess(userId)
+    const onVisibility = () => { if (document.visibilityState === 'visible') checkAccess(userId) }
+
     load()
-    return () => { mounted = false }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      mounted = false
+      if (intervalId) window.clearInterval(intervalId)
+      if (channel) supabase.removeChannel(channel)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [isLogin])
 
   const initials = useMemo(() => {
