@@ -50,7 +50,7 @@ jobs:
         run: npm ci
 
       - name: Install Android packaging tools
-        run: npm install --no-save @capacitor/core@8 @capacitor/cli@8 @capacitor/android@8 @capacitor/assets@3 @capacitor/status-bar@8
+        run: npm install --no-save @capacitor/core@8 @capacitor/cli@8 @capacitor/android@8 @capacitor/assets@3 @capacitor/keyboard@8
 
       - name: Create Android project
         run: npx cap add android
