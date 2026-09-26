@@ -1,0 +1,66 @@
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html,
+body,
+.app-shell,
+.app-main {
+  min-height: 100dvh;
+}
+
+@media (max-width: 900px) {
+  .app-shell,
+  .app-main,
+  .app-content {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .app-mobile-header {
+    height: auto;
+    min-height: 64px;
+    padding-top: max(10px, env(safe-area-inset-top));
+    padding-left: max(15px, env(safe-area-inset-left));
+    padding-right: max(15px, env(safe-area-inset-right));
+  }
+
+  .app-content {
+    min-height: 100dvh;
+  }
+
+  .page-wrap {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .app-bottom-nav {
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 560px) {
+  body {
+    font-size: 16px;
+  }
+
+  .page-subtitle {
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  .app-mobile-brand strong {
+    font-size: 14px;
+  }
+
+  .app-mobile-brand span {
+    font-size: 11px;
+  }
+
+  .app-bottom-item {
+    font-size: 10px;
+  }
+}
