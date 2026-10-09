@@ -212,7 +212,6 @@ img, svg { max-width: 100%; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
 
 
-/* Maya visual refinement: translucent surfaces with controlled mobile effects */
 :root {
   --maya-glass: color-mix(in srgb, var(--panel) 88%, transparent);
   --maya-glass-edge: color-mix(in srgb, var(--line) 72%, white 28%);
