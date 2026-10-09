@@ -1,55 +1,54 @@
-# Maya Steel Works — Downloads
+# Maya Steel Works — Official Downloads and Installation
 
-Use this page for the current Maya Steel Works application and production system.
+**Product:** Maya Steel Works, Maya Branch only  
+**Production website:** https://maya-steel-works-mgt.vercel.app  
+**Private repository:** https://github.com/lumuxav/maya-steel-works
 
-## Android — current official install
+## Android — install the latest APK
 
-**Latest Release page**  
-https://github.com/lumuxav/maya-steel-works/releases/latest
+**[Open the latest Maya Android release](https://github.com/lumuxav/maya-steel-works/releases/latest)**
 
-**Direct APK**  
-https://github.com/lumuxav/maya-steel-works/releases/download/maya-latest/Maya-Steel-Works.apk
+1. Sign into GitHub using an account authorized to access this private repository.
+2. Open **Releases → Latest**.
+3. Expand **Assets** and download **`Maya-Steel-Works.apk`**.
+4. Allow Android installation from that file/browser if the device asks you.
+5. Open Maya and sign in with your own Maya staff account.
+6. Verify the navigation: open a subpage, press Android Back to return; on Home press Back twice within about 2.2 seconds to exit.
 
-For normal installation, always use the **Latest Release** above instead of downloading an older artifact from GitHub Actions.
+New releases use **versioned tags**, for example `maya-android-build-17`; the exact current version may be newer. The older fixed `maya-latest` tag is a **legacy build** and should not be used for the latest install. Avoid APKs obtained from an old GitHub Actions build/run.
 
-The current release is built from `main` and includes the native Capacitor App plugin for Android Back-button handling:
+### Updating an installed APK
 
-- sub-pages navigate back through Maya rather than immediately closing the application
-- if no useful app history exists, Back returns to Home
-- Home is the screen from which Android Back may exit the application
+The existing pipeline produces **debug-signed** internal APKs. An update may fail if the current APK was signed with a different debug key. If Android rejects an in-place update, verify important work has synchronized with Supabase, then uninstall the old app and install the current release. Uninstalling may erase local session/preferences and require logging in again; server-stored Maya transactions are separate.
 
-It also includes the existing cross-device safe-area, keyboard and system-bar support.
+For large-scale long-term distribution, arrange a stable release keystore and versioning process. No signed Google Play release is claimed.
 
-> Android may ask you to allow installation from your browser or Files app because this is a direct APK installation rather than a Play Store installation.
+Native code in `android-native/MainActivity.java` provides phone Back behavior and the double-Back exit safeguard. Business/web interface changes generally arrive through Vercel without requiring a new APK, but native changes need the new installer.
 
-### Updating an existing APK
+## Desktop, laptop and PWA
 
-The current pipeline produces a debug-signed internal APK. If Android refuses to install a newer APK over an older build because the signatures differ, the old Maya app must be removed before installing the new APK. That can clear local app storage/session state, so the user may need to sign in once again.
-
-For reliable long-term in-place upgrades, configure a stable production signing keystore.
-
-## Desktop
-
-Production desktop/laptop system:
-
-https://maya-steel-works-mgt.vercel.app
-
-The responsive web application is the official desktop experience. Native Windows `.exe` and macOS `.dmg` installers have not yet been packaged.
+- **Official desktop/web app:** https://maya-steel-works-mgt.vercel.app
+- Supported desktop browsers can open Maya directly.
+- On supported phones/desktops use **Install app** / **Add to Home Screen** to create a shortcut or PWA.
+- There is **no officially packaged** Windows `.exe` or macOS `.dmg` at this time.
 
 ## iPhone / iPad
 
-The Capacitor iOS project passes unsigned simulator/native build validation, including the native App plugin used for navigation support.
+Use https://maya-steel-works-mgt.vercel.app in Safari or another supported browser. There is a native iOS simulator-validation workflow, but no signed and distributed IPA/TestFlight app in this repository at present.
 
-A signed installable iOS package is not published yet because Apple signing/provisioning is still required.
+## Where builds come from
 
-Until native iOS distribution is configured, iPhone/iPad users can use:
+| Output | GitHub workflow | Distribution |
+| --- | --- | --- |
+| Web | `main` GitHub → `maya-steel-works-eboa` Vercel | Production website |
+| Android | `.github/workflows/build-android-apk.yml` | **Versioned GitHub Release**, newest marked Latest |
+| iOS validation | `.github/workflows/validate-ios.yml` | Unsigned simulator build, **not** an app-store download |
 
-https://maya-steel-works-mgt.vercel.app
+## Security notes
 
-## Source of truth
+- Download from the **official private repository**, not from forwarded APK mirrors.
+- Never share Maya staff passwords or database tokens.
+- A custom purchased domain can be added later to the **same** Vercel and Supabase projects without erasing server data.
+- For keep-alive and external website monitoring, see [Security, Deployment and Monitoring](docs/SECURITY_DEPLOYMENT_MONITORING.md).
 
-- Web production: `main` → Vercel (`maya-steel-works-eboa`)
-- Android: `main` → GitHub Actions → `maya-latest` GitHub Release
-- iOS: `main` → iOS validation workflow
-
-Do not use old APKs from historical workflow runs for normal staff installation.
+**Do not install or distribute APKs from Universal MGT; it is an entirely separate application.**
