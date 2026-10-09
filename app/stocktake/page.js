@@ -97,7 +97,7 @@ export default function StocktakePage() {
     setSaving(true)
     setMessage(null)
     if (!group) { setMessage({ type: 'error', text: 'Select the item you counted.' }); setSaving(false); return }
-    if (physical === '') { setMessage({ type: 'error', text: 'Enter the total physical count.' }); setSaving(false); return }
+    if (physical === '' || !Number.isFinite(Number(physical)) || Number(physical) < 0) { setMessage({ type: 'error', text: 'Enter a valid, non-negative physical count.' }); setSaving(false); return }
 
     for (const a of allocate(group.batches, Number(physical))) {
       if (Number(a.batch.quantity) === 0 && a.phys === 0) continue
