@@ -300,6 +300,10 @@ WITH CHECK (
   (select private.maya_active_member())
   AND received_by=(select auth.uid())
 );
+DROP POLICY IF EXISTS exp_select ON public.expenses;
+CREATE POLICY maya_expense_select ON public.expenses FOR SELECT TO authenticated
+USING ((select private.maya_active_member())
+  AND ((select public.get_user_role()) IN ('admin','super_admin') OR recorded_by=(select auth.uid())));
 DROP POLICY IF EXISTS exp_insert ON public.expenses;
 CREATE POLICY maya_expense_insert ON public.expenses FOR INSERT TO authenticated
 WITH CHECK (
