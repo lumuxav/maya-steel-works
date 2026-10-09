@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS private.maya_operation_keys (
 REVOKE ALL ON private.maya_operation_keys FROM PUBLIC, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION private.maya_produce(
-  p_recipe_id bigint, p_raw_id bigint, p_used numeric, p_made numeric, p_scrap numeric
+  p_recipe_id bigint, p_raw_id bigint, p_used numeric, p_made numeric, p_scrap numeric, p_default_price numeric DEFAULT 0
 ) RETURNS bigint
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $$
@@ -45,7 +45,7 @@ BEGIN
   ORDER BY id LIMIT 1 FOR UPDATE;
   IF v_fg_id IS NULL THEN
     INSERT INTO public.finished_goods(name,gauge,size_dimensions,unit,quantity,selling_price,current_branch)
-    VALUES (v_recipe.finished_name,v_recipe.raw_gauge,v_recipe.finished_size,'pieces',0,0,'Maya Branch')
+    VALUES (v_recipe.finished_name,v_recipe.raw_gauge,v_recipe.finished_size,'pieces',0,coalesce(p_default_price,0),'Maya Branch')
     RETURNING id INTO v_fg_id;
   END IF;
   PERFORM private.deduct_stock_internal('raw',p_raw_id,p_used,'used_in_production','Maya production');
@@ -59,7 +59,7 @@ BEGIN
   RETURN v_fg_id;
 END;
 $$;
-REVOKE ALL ON FUNCTION private.maya_produce(bigint,bigint,numeric,numeric,numeric) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION private.maya_produce(bigint,bigint,numeric,numeric,numeric,numeric) FROM PUBLIC, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION public.maya_ledger(
   p_operation text, p_data jsonb, p_request_id uuid
@@ -127,7 +127,7 @@ BEGIN
     END IF;
     IF p_operation='make_sale' THEN
       v_used := (v_request->>'raw_units')::numeric;
-      v_item_id := private.maya_produce((v_request->>'recipe_id')::bigint,(v_request->>'raw_id')::bigint,v_used,v_qty,0);
+      v_item_id := private.maya_produce((v_request->>'recipe_id')::bigint,(v_request->>'raw_id')::bigint,v_used,v_qty,0,v_price);
     ELSE
       v_item_id := coalesce((v_request->>'item_id')::bigint,0);
     END IF;
@@ -241,6 +241,8 @@ REVOKE INSERT ON public.sales FROM PUBLIC, authenticated;
 REVOKE INSERT ON public.production_log FROM PUBLIC, authenticated;
 REVOKE INSERT ON public.debt_events FROM PUBLIC, authenticated;
 REVOKE INSERT ON public.stock_movements FROM PUBLIC, authenticated;
+REVOKE INSERT ON public.raw_materials FROM PUBLIC, authenticated;
+REVOKE INSERT ON public.finished_goods FROM PUBLIC, authenticated;
 CREATE OR REPLACE FUNCTION private.maya_active_member() RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
 AS $$
@@ -275,6 +277,12 @@ WITH CHECK (
   AND recorded_by=(select auth.uid())
   AND status='pending' AND amount_banked>0
   AND banking_date>='2026-10-12'::date
+);
+DROP POLICY IF EXISTS del_insert ON public.deliveries;
+CREATE POLICY maya_delivery_insert_actor ON public.deliveries FOR INSERT TO authenticated
+WITH CHECK (
+  (select private.maya_active_member())
+  AND received_by=(select auth.uid())
 );
 DROP POLICY IF EXISTS exp_insert ON public.expenses;
 CREATE POLICY maya_expense_insert ON public.expenses FOR INSERT TO authenticated
