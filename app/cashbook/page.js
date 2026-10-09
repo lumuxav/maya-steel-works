@@ -151,12 +151,25 @@ export default function CashbookPage() {
   }
   const addExpense = async (e) => {
     e.preventDefault()
-    const { error } = await supabase.from('expenses').insert({ description: expDesc, category: expCat, amount: Number(expAmount), recorded_by: userId })
+    const amountEntered = Number(expAmount)
+    if (!expDesc.trim() || !Number.isFinite(amountEntered) || amountEntered <= 0) {
+      setMessage({ type: 'error', text: 'Expense description and a positive amount are required.' })
+      return
+    }
+    if (mayaBusinessDay() < PRODUCTION_START_DAY) {
+      setMessage({ type: 'error', text: 'Transactions cannot be recorded before the Maya launch date.' })
+      return
+    }
+    const { error } = await supabase.from('expenses').insert({ description: expDesc.trim(), category: expCat, amount: amountEntered, recorded_by: userId })
     if (error) setMessage({ type: 'error', text: error.message }); else { setMessage({ type: 'success', text: 'Expense recorded for Maya Branch.' }); setExpDesc(''); setExpAmount(''); load() }
   }
   const addBanking = async (e) => {
     e.preventDefault()
     const amt = Number(bankAmount)
+    if (!Number.isFinite(amt) || amt <= 0 || bankDate < PRODUCTION_START_DAY || bankDate > todayStr || mayaBusinessDay() < PRODUCTION_START_DAY) {
+      setMessage({ type: 'error', text: 'Choose a valid Maya operating day and enter a positive banking amount.' })
+      return
+    }
     const variance = amt - expectedNow
     const flagged = Math.abs(variance) >= TOLERANCE
     const { error } = await supabase.from('bankings').insert({ banking_date: bankDate || selectedDay, amount_banked: amt, bank_or_method: bankMethod || null, notes: bankNotes || null, recorded_by: userId, status: 'pending', expected_amount: expectedNow, variance, flagged })
