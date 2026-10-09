@@ -264,10 +264,24 @@ USING (((select private.maya_active_member()) AND (select public.get_user_role()
 WITH CHECK (((select private.maya_active_member()) AND (select public.get_user_role()) IN ('admin','super_admin')));
 DROP POLICY IF EXISTS sales_select ON public.sales;
 CREATE POLICY maya_sales_select ON public.sales FOR SELECT TO authenticated
-USING ((select private.maya_active_member()));
+USING (
+  (select private.maya_active_member())
+  AND ((select public.get_user_role()) IN ('admin','super_admin')
+    OR sold_by=(select auth.uid()))
+);
 DROP POLICY IF EXISTS debt_select ON public.debt_events;
 CREATE POLICY maya_debt_select ON public.debt_events FOR SELECT TO authenticated
-USING ((select private.maya_active_member()));
+USING (
+  (select private.maya_active_member())
+  AND (
+    (select public.get_user_role()) IN ('admin','super_admin')
+    OR received_by=(select auth.uid())
+    OR EXISTS (
+      SELECT 1 FROM public.sales s
+      WHERE s.id=debt_events.sale_id AND s.sold_by=(select auth.uid())
+    )
+  )
+);
 DROP POLICY IF EXISTS debt_update ON public.debt_events;
 CREATE POLICY maya_debt_update_admin ON public.debt_events FOR UPDATE TO authenticated
 USING (((select private.maya_active_member()) AND (select public.get_user_role()) IN ('admin','super_admin')))
