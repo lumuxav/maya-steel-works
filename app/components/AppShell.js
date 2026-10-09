@@ -96,8 +96,8 @@ export default function AppShell({ children }) {
       intervalId = window.setInterval(() => checkAccess(id), 15000)
     }
 
-    const onFocus = () => checkAccess(userId)
-    const onVisibility = () => { if (document.visibilityState === 'visible') checkAccess(userId) }
+    const onFocus = () => checkAccess()
+    const onVisibility = () => { if (document.visibilityState === 'visible') checkAccess() }
 
     load()
     window.addEventListener('focus', onFocus)
@@ -110,7 +110,7 @@ export default function AppShell({ children }) {
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [isLogin, userId])
+  }, [isLogin])
 
   const initials = useMemo(() => {
     const name = profile?.full_name || 'Maya Steel Works'
