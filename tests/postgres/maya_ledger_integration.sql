@@ -145,6 +145,16 @@ BEGIN
  EXCEPTION WHEN insufficient_privilege THEN NULL;
  END;
  BEGIN
+  PERFORM public.add_stock('raw',1,999,'untracked','forged');
+  RAISE EXCEPTION 'Expected legacy add_stock denial';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+ BEGIN
+  PERFORM public.deduct_stock('raw',1,999,'sold','forged');
+  RAISE EXCEPTION 'Expected legacy deduct_stock denial';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+ BEGIN
   INSERT INTO public.raw_materials(category,quantity) VALUES('Forged Stock',500);
   RAISE EXCEPTION 'Expected raw stock privilege denial';
  EXCEPTION WHEN insufficient_privilege THEN NULL;
