@@ -91,7 +91,7 @@ flowchart LR
 - **Backend:** Supabase Auth, PostgreSQL RLS and atomic `maya_ledger` / `maya_correct_record` RPCs.
 - **Web hosting:** Vercel project `maya-steel-works-eboa`.
 - **Mobile:** Capacitor 8 / Gradle builds and GitHub APK releases.
-- **CI:** free GitHub Actions tests and isolated PostgreSQL integration environment; no production test writes.
+- **CI:** free GitHub Actions tests and isolated runner-local PostgreSQL 16 integration environment; no production test writes.
 
 ## Supabase keep-alive & website monitoring
 
