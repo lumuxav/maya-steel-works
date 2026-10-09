@@ -51,35 +51,21 @@ jobs:
           node scripts/maya-route-smoke.mjs
 
   atomic-ledger-database:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: maya-test-only
-          POSTGRES_DB: maya_fixture
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d maya_fixture"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     steps:
       - name: Checkout Maya repository
         uses: actions/checkout@v4
-      - name: Run isolated PostgreSQL Maya transaction and RLS tests
-        env:
-          PGHOST: 127.0.0.1
-          PGPORT: 5432
-          PGUSER: postgres
-          PGPASSWORD: maya-test-only
-          PGDATABASE: maya_fixture
+      - name: Start preinstalled PostgreSQL 16 locally
         run: |
-          psql -X -v ON_ERROR_STOP=1 -f tests/postgres/maya_fixture.sql
-          psql -X -v ON_ERROR_STOP=1 -f tests/postgres/maya_premigration_policies.sql
-          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261009_maya_atomic_ledger_and_rls.sql
-          psql -X -v ON_ERROR_STOP=1 -f tests/postgres/maya_ledger_integration.sql
-          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261009_maya_atomic_corrections_and_grants.sql
-          psql -X -v ON_ERROR_STOP=1 -f tests/postgres/maya_corrections_integration.sql
+          sudo systemctl start postgresql.service
+          sudo -u postgres pg_isready
+          sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "CREATE DATABASE maya_fixture;"
+      - name: Run isolated Maya transaction and RLS regression tests
+        run: |
+          sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d maya_fixture -f tests/postgres/maya_fixture.sql
+          sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d maya_fixture -f tests/postgres/maya_premigration_policies.sql
+          sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d maya_fixture -f supabase/migrations/20261009_maya_atomic_ledger_and_rls.sql
+          sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d maya_fixture -f tests/postgres/maya_ledger_integration.sql
+          sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d maya_fixture -f supabase/migrations/20261009_maya_atomic_corrections_and_grants.sql
+          sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d maya_fixture -f tests/postgres/maya_corrections_integration.sql
