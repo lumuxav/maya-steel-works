@@ -243,6 +243,8 @@ REVOKE INSERT ON public.debt_events FROM PUBLIC, authenticated;
 REVOKE INSERT ON public.stock_movements FROM PUBLIC, authenticated;
 REVOKE INSERT ON public.raw_materials FROM PUBLIC, authenticated;
 REVOKE INSERT ON public.finished_goods FROM PUBLIC, authenticated;
+REVOKE UPDATE, DELETE ON public.raw_materials, public.finished_goods FROM PUBLIC, authenticated;
+REVOKE UPDATE, DELETE ON public.production_log, public.stock_movements, public.debt_events FROM PUBLIC, authenticated;
 CREATE OR REPLACE FUNCTION private.maya_active_member() RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
 AS $$
