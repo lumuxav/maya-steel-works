@@ -166,7 +166,13 @@ export default function AppShell({ children }) {
 
       <div className="app-main">
         <header className="app-mobile-header">
-          <div className="app-mobile-brand"><div className="app-brand-mark small">MS</div><div><strong>Maya Steel Works</strong><span>{isSuper ? 'System Administration' : 'Management'}</span></div></div>
+          <div className="app-mobile-brand">
+            {pathname !== '/' && <button type="button" className="app-mobile-back" aria-label="Go back to previous Maya page" onClick={() => window.dispatchEvent(new Event('maya-native-back'))}>
+              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>}
+            <div className="app-brand-mark small">MS</div>
+            <div><strong>Maya Steel Works</strong><span>{isSuper ? 'System Administration' : 'Management'}</span></div>
+          </div>
           <ProfileAvatar userId={userId} initials={initials} className="app-avatar small" />
         </header>
         <div className="app-content">{children}</div>
