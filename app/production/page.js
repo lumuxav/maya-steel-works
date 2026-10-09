@@ -64,14 +64,12 @@ export default function ProductionPage() {
     if (![u,p].every(Number.isFinite) || u <= 0 || p <= 0 || !Number.isFinite(Number(scrap || 0)) || Number(scrap || 0) < 0) { setMessage({ type: 'error', text: 'Raw units and output must be positive, and scrap must not be negative.' }); setSaving(false); return }
     if (u > batch.quantity) { setMessage({ type: 'error', text: `Only ${batch.quantity} ${batch.unit} available at Maya Branch.` }); setSaving(false); return }
 
-    if (!requestRef.current) requestRef.current = crypto.randomUUID()
+    const payload = { recipe_id: recipe.id, raw_id: batch.id, raw_units: u, quantity: p, scrap: Number(scrap) || 0 }
+    const signature = JSON.stringify(payload)
+    if (!requestRef.current || requestRef.current.signature !== signature) requestRef.current = { id: crypto.randomUUID(), signature }
     const { error } = await supabase.rpc('maya_ledger', {
-      p_operation: 'production',
-      p_data: {
-        recipe_id: recipe.id, raw_id: batch.id, raw_units: u,
-        quantity: p, scrap: Number(scrap) || 0,
-      },
-      p_request_id: requestRef.current,
+      p_operation: 'production', p_data: payload,
+      p_request_id: requestRef.current.id,
     })
     if (error) { setMessage({ type: 'error', text: error.message }); setSaving(false); return }
     requestRef.current = null
