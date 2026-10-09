@@ -234,6 +234,8 @@ BEGIN
   RETURN v_result;
 END;
 $$;
+REVOKE ALL ON FUNCTION public.add_stock(text,bigint,numeric,text,text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.deduct_stock(text,bigint,numeric,text,text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.maya_ledger(text,jsonb,uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.maya_ledger(text,jsonb,uuid) TO authenticated;
 
