@@ -5,7 +5,7 @@ const pages = [
   '/', '/login', '/inventory', '/sales', '/customer-work',
   '/production', '/cashbook', '/stocktake', '/sales-report',
   '/alerts', '/records', '/settings', '/users', '/system-control',
-  '/deliveries', '/profit', '/recipes', '/corrections', '/bankings'
+  '/deliveries', '/profit', '/recipes', '/corrections'
 ]
 
 let passed = 0
