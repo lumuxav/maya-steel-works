@@ -141,16 +141,16 @@ export default function UsersPage() {
     if (u.id === profile.id) return
     const first = window.confirm(`Remove ${u.full_name} from Maya access?\n\nThis disables the login and archives the account. Historical activity is preserved. If the SAME employee returns, a Super Admin can restore this account with a new password.`)
     if (!first) return
-    const confirmText = window.prompt(`Type DELETE to archive ${u.full_name}:`)
-    if (confirmText !== 'DELETE') return
+    const confirmText = window.prompt(`Type ARCHIVE to remove ${u.full_name} from active access:`)
+    if (confirmText !== 'ARCHIVE') return
 
     setDeletingId(u.id)
     setRowMessages(m => ({ ...m, [u.id]: null }))
     const r = await callApi('DELETE', { user_id: u.id })
     if (r.ok) {
-      setRowMessages(m => ({ ...m, [u.id]: { type: 'success', text: r.archived ? `${u.full_name} was removed from active users and their old business history was preserved.` : `${u.full_name} was permanently deleted.` } }))
       setUsers(current => current.filter(x => x.id !== u.id))
-      setTimeout(() => load(), 500)
+      await load()
+      setMessage({ type: 'success', text: `${u.full_name} was archived and cannot sign in. Their email remains reserved for a future restoration, and previous business history was preserved.` })
     } else {
       setRowMessages(m => ({ ...m, [u.id]: { type: 'error', text: r.error || 'Could not delete user.' } }))
     }
@@ -206,7 +206,7 @@ export default function UsersPage() {
                   <select value={u.role} onChange={(e) => changeRole(u, e.target.value)} disabled={u.id === profile.id} className="input-base !w-auto !py-2 text-xs disabled:opacity-50">{ROLES.map(r => <option key={r} value={r}>{prettyRole(r)}</option>)}</select>
                   <button onClick={() => resetPassword(u)} type="button" className="btn-secondary rounded-xl px-3 py-2 text-xs font-bold">Reset password</button>
                   <button onClick={() => toggleActive(u)} type="button" disabled={u.id === profile.id} className={`rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-40 ${u.active === false ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>{u.active === false ? 'Reactivate' : 'Disable'}</button>
-                  <button onClick={() => deleteUser(u)} type="button" disabled={u.id === profile.id || deletingId === u.id} className="rounded-xl border border-red-500/40 px-3 py-2 text-xs font-bold text-red-500 transition hover:bg-red-500/10 disabled:opacity-30">{deletingId === u.id ? 'Deleting...' : 'Delete'}</button>
+                  <button onClick={() => deleteUser(u)} type="button" disabled={u.id === profile.id || deletingId === u.id} className="rounded-xl border border-red-500/40 px-3 py-2 text-xs font-bold text-red-500 transition hover:bg-red-500/10 disabled:opacity-30">{deletingId === u.id ? 'Archiving...' : 'Archive'}</button>
                 </div>
               </div>
               {rowMessages[u.id] && <div className={`mt-3 rounded-xl border px-3 py-2 text-xs ${rowMessages[u.id].type === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500' : 'border-red-500/30 bg-red-500/10 text-red-500'}`}>{rowMessages[u.id].text}</div>}
