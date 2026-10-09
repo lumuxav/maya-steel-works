@@ -87,11 +87,12 @@ export default function SalesReportPage() {
   const customerOwed = customerSales.reduce((sum, s) => sum + Math.max(0, balance(s)), 0)
 
   const ledgerAction = async (operation, payload) => {
-    if (!operationRef.current) operationRef.current = crypto.randomUUID()
+    const signature = JSON.stringify([operation, payload])
+    if (!operationRef.current || operationRef.current.signature !== signature) operationRef.current = { id: crypto.randomUUID(), signature }
     const { data, error } = await supabase.rpc('maya_ledger', {
       p_operation: operation,
       p_data: payload,
-      p_request_id: operationRef.current,
+      p_request_id: operationRef.current.id,
     })
     if (error) {
       setMessage({ type: 'error', text: error.message })
