@@ -1,0 +1,51 @@
+name: Maya pre-launch regression tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  logic-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Maya repository
+        uses: actions/checkout@v4
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install exactly locked packages
+        run: npm ci
+      - name: Run Maya financial and calendar regression tests
+        run: npm run test:logic
+      - name: Lint Maya business rules and tests
+        run: npx eslint lib/mayaBusiness.mjs tests/maya-business-logic.test.mjs
+      - name: Build Maya Next.js application (no live database access)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-public-key-no-live-access
+        run: npm run build
+      - name: Smoke-test Maya pages and anonymous API denial
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-public-key-no-live-access
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-server-key-no-live-access
+        run: |
+          npm run start -- --hostname 127.0.0.1 --port 3000 >/tmp/maya-next.log 2>&1 &
+          SERVER_PID=$!
+          trap "kill $SERVER_PID 2>/dev/null || true" EXIT
+          for i in $(seq 1 25); do
+            if curl -fsS http://127.0.0.1:3000/login >/dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/maya-route-smoke.mjs

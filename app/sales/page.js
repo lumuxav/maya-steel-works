@@ -76,7 +76,9 @@ export default function SalesPage() {
   const finishSale = async (itemType, item, quantity, unitPrice, label) => {
     const { data: { session } } = await supabase.auth.getSession()
     const totalAmt = quantity * unitPrice
-    const paid = status === 'paid' ? totalAmt : status === 'credit' ? 0 : Number(paidAmount) || 0
+    const paid = status === 'paid' ? totalAmt : status === 'credit' ? 0 : Number(paidAmount)
+    if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(unitPrice) || unitPrice <= 0) return 'Quantity and unit price must be positive.'
+    if (status === 'partial' && (!Number.isFinite(paid) || paid <= 0 || paid >= totalAmt)) return 'Partial payment must be greater than 0 and less than the sale total.'
     const { data: createdSale, error: sErr } = await supabase.from('sales').insert({ item_type: itemType, item_id: item.id, quantity, unit_price: unitPrice, selling_price: unitPrice, total_amount: totalAmt, amount_paid: paid, payment_status: status, customer_name: customer || 'Walk-in', sold_by: session.user.id, item_label: label }).select('id').single()
     if (sErr) return sErr.message
     const { error: dErr } = await supabase.rpc('deduct_stock', { p_item_type: itemType, p_item_id: item.id, p_quantity: quantity, p_movement_type: 'sold', p_notes: `Maya Branch sale to ${customer || 'Walk-in'} (${status})` })
@@ -90,7 +92,7 @@ export default function SalesPage() {
     if (mode === 'make') {
       if (!recipe || !batch) { setMessage({ type: 'error', text: 'Choose production standard and Maya Branch batch.' }); setSaving(false); return }
       const u = Number(units), q = Number(qty), p = Number(price)
-      if (!u || !q || !p) { setMessage({ type: 'error', text: 'Fill units used, quantity and price.' }); setSaving(false); return }
+      if (![u,q,p].every(Number.isFinite) || u <= 0 || q <= 0 || p <= 0) { setMessage({ type: 'error', text: 'Raw units, quantity and price must be positive.' }); setSaving(false); return }
       if (u > batch.quantity) { setMessage({ type: 'error', text: `Only ${batch.quantity} available at Maya Branch.` }); setSaving(false); return }
       let fg = finished.find(x => x.name?.toLowerCase() === recipe.finished_name?.toLowerCase()) || null
       if (!fg) {
@@ -114,7 +116,7 @@ export default function SalesPage() {
       const item = list.find(i => i.id === Number(itemId))
       if (!item) { setMessage({ type: 'error', text: 'Choose Maya Branch stock.' }); setSaving(false); return }
       const q = Number(qty), p = Number(price)
-      if (!q || !p) { setMessage({ type: 'error', text: 'Fill quantity and price.' }); setSaving(false); return }
+      if (![q,p].every(Number.isFinite) || q <= 0 || p <= 0) { setMessage({ type: 'error', text: 'Quantity and price must be positive.' }); setSaving(false); return }
       if (q > item.quantity) { setMessage({ type: 'error', text: `Only ${item.quantity} available at Maya Branch.` }); setSaving(false); return }
       const label = mode === 'finished' ? `${item.name} ${item.gauge || ''} ${item.size_dimensions || ''}`.trim() : `${item.category} ${item.gauge || ''} ${item.size_dimensions || ''}`.trim()
       const err = await finishSale(mode === 'finished' ? 'finished' : 'raw', item, q, p, label)

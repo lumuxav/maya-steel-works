@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
-import { SYSTEM_BRANCH, getSystemUserIds, isSystemBranch } from '../../lib/branch'
+import { SYSTEM_BRANCH, getSystemUserIds } from '../../lib/branch'
+import { customerServiceSalePayload } from '../../lib/mayaBusiness.mjs'
 
 const SERVICES = [
   'Ribbed / Pressed Plate',
@@ -51,29 +52,19 @@ export default function CustomerWorkPage() {
     load()
   }, [])
 
-  const getLedgerAnchorId = async () => {
-    const { data: finished } = await supabase.from('finished_goods').select('id, current_branch').order('id', { ascending: true })
-    const fg = (finished || []).find(x => isSystemBranch(x.current_branch))
-    if (fg?.id) return fg.id
-    const source = isAdmin ? 'raw_materials_admin_view' : 'raw_materials_employee_view'
-    const { data: raw } = await supabase.from(source).select('id, current_branch').order('id', { ascending: true })
-    const rw = (raw || []).find(x => isSystemBranch(x.current_branch))
-    return rw?.id || null
-  }
-
   const handleSubmit = async (e) => {
     e.preventDefault(); setSaving(true); setMessage(null)
     const qty = Number(quantity), price = Number(rate)
-    if (!qty || !price) { setMessage({ type: 'error', text: 'Enter the number of plates/pieces worked on and the charge per plate/piece.' }); setSaving(false); return }
+    if (!Number.isInteger(qty) || qty <= 0 || !Number.isFinite(price) || price <= 0) { setMessage({ type: 'error', text: 'Enter the number of plates/pieces worked on and the charge per plate/piece.' }); setSaving(false); return }
     if (status === 'partial' && (paidNow <= 0 || paidNow >= total)) { setMessage({ type: 'error', text: 'Partial payment must be greater than 0 and less than the total charge.' }); setSaving(false); return }
 
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return (window.location.href = '/login')
-    const ledgerItemId = await getLedgerAnchorId()
-    if (!ledgerItemId) { setMessage({ type: 'error', text: 'Add at least one Maya Branch stock item before recording service jobs.' }); setSaving(false); return }
-
-    const label = `Customer Material - ${service}${details.trim() ? ` - ${details.trim()}` : ''}`
-    const { error } = await supabase.from('sales').insert({ item_type: 'service', item_id: ledgerItemId, quantity: qty, unit_price: price, selling_price: price, total_amount: total, amount_paid: paidNow, payment_status: status, customer_name: customer || 'Walk-in', sold_by: session.user.id, item_label: label })
+    const serviceRow = customerServiceSalePayload({
+      service, details, quantity: qty, rate: price, status, paidAmount: paidNow,
+      customer, soldBy: session.user.id,
+    })
+    const { error } = await supabase.from('sales').insert(serviceRow)
     if (error) { setMessage({ type: 'error', text: error.message }); setSaving(false); return }
 
     setMessage({ type: 'success', text: `Recorded ${qty} plate/piece${qty === 1 ? '' : 's'} at ${price.toLocaleString()} UGX each. Maya stock was not deducted.` })

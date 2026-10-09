@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:logic": "node --test tests/*.test.mjs",
+    "check:business": "npm run test:logic && npm run build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

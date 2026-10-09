@@ -35,29 +35,39 @@ export default function SalesReportPage() {
   const bankedOnDay = (day) => bankings.filter(b => b.banking_date === day).reduce((sum, b) => sum + Number(b.amount_banked), 0)
 
   const load = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return (window.location.href = '/login')
-    setUserId(session.user.id)
-    const { data: prof } = await supabase.from('users').select('full_name, role, branch').eq('id', session.user.id).single()
-    setProfile(prof)
-    const admin = prof?.role === 'admin' || prof?.role === 'super_admin'
-    const systemUsers = await getSystemUserIds(supabase)
+    setLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return (window.location.href = '/login')
+      setUserId(session.user.id)
 
-    const { data: allSales } = await supabase.from('sales').select('*').order('created_at', { ascending: false }).limit(1000)
-    const branchSales = (allSales || []).filter(s => systemUsers.has(s.sold_by))
-    const visibleSales = admin ? branchSales : branchSales.filter(s => s.sold_by === session.user.id)
-    setSales(visibleSales)
-    const branchSaleIds = new Set(branchSales.map(s => s.id))
-
-    const { data: ev } = await supabase.from('debt_events').select('*').order('created_at', { ascending: false }).limit(1000)
-    setEvents((ev || []).filter(e => (e.sale_id && branchSaleIds.has(e.sale_id)) || (!e.sale_id && systemUsers.has(e.received_by))))
-
-    const { data: bk } = await supabase.from('bankings').select('*').limit(1000)
-    setBankings((bk || []).filter(b => systemUsers.has(b.recorded_by)))
-
-    const { data: users } = await supabase.from('users').select('id, full_name, branch')
-    setUserMap(Object.fromEntries((users || []).filter(u => systemUsers.has(u.id)).map(u => [u.id, u])))
-    setLoading(false)
+      const [profileRes, systemUsers, salesRes, eventsRes, bankingRes, userRes] = await Promise.all([
+        supabase.from('users').select('full_name, role, branch').eq('id', session.user.id).single(),
+        getSystemUserIds(supabase),
+        supabase.from('sales').select('*').order('created_at', { ascending: false }).limit(1000),
+        supabase.from('debt_events').select('*').order('created_at', { ascending: false }).limit(1000),
+        supabase.from('bankings').select('*').limit(1000),
+        supabase.from('users').select('id, full_name, branch')
+      ])
+      const errors = [profileRes, salesRes, eventsRes, bankingRes, userRes].map((result) => result.error).filter(Boolean)
+      if (errors.length) throw new Error(errors[0].message)
+      const prof = profileRes.data
+      if (!prof) throw new Error('Maya staff profile was not found.')
+      setProfile(prof)
+      const admin = prof.role === 'admin' || prof.role === 'super_admin'
+      const branchSales = (salesRes.data || []).filter((row) => systemUsers.has(row.sold_by))
+      const visibleSales = admin ? branchSales : branchSales.filter((row) => row.sold_by === session.user.id)
+      setSales(visibleSales)
+      const branchSaleIds = new Set(branchSales.map((row) => row.id))
+      setEvents((eventsRes.data || []).filter((row) =>
+        (row.sale_id && branchSaleIds.has(row.sale_id)) || (!row.sale_id && systemUsers.has(row.received_by))))
+      setBankings((bankingRes.data || []).filter((row) => systemUsers.has(row.recorded_by)))
+      setUserMap(Object.fromEntries((userRes.data || []).filter((row) => systemUsers.has(row.id)).map((row) => [row.id, row])))
+    } catch (error) {
+      setMessage({ type: 'error', text: error?.message || 'Could not load Maya sales and credit records.' })
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [])
