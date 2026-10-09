@@ -20,6 +20,11 @@ CREATE TABLE public.finished_goods(
  size_dimensions text, unit text NOT NULL, quantity numeric DEFAULT 0,
  selling_price numeric NOT NULL, current_branch text DEFAULT 'Maya Branch'
 );
+CREATE TABLE public.deliveries (
+ id bigserial PRIMARY KEY, supplier_name text NOT NULL,
+ received_by uuid REFERENCES public.users(id),
+ created_at timestamptz DEFAULT now()
+);
 CREATE TABLE public.production_recipes(
  id bigserial PRIMARY KEY, raw_category text NOT NULL, raw_gauge text, raw_size text,
  finished_name text NOT NULL, finished_size text, yield_per_raw_unit numeric NOT NULL
