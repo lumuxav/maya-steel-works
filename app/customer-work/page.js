@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { SYSTEM_BRANCH, getSystemUserIds } from '../../lib/branch'
+import { customerServiceSalePayload } from '../../lib/mayaBusiness.mjs'
 
 const SERVICES = [
   'Ribbed / Pressed Plate',
@@ -59,8 +60,11 @@ export default function CustomerWorkPage() {
 
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return (window.location.href = '/login')
-    const label = `Customer Material - ${service}${details.trim() ? ` - ${details.trim()}` : ''}`
-    const { error } = await supabase.from('sales').insert({ item_type: 'service', item_id: 0, quantity: qty, unit_price: price, selling_price: price, total_amount: total, amount_paid: paidNow, payment_status: status, customer_name: customer || 'Walk-in', sold_by: session.user.id, item_label: label })
+    const serviceRow = customerServiceSalePayload({
+      service, details, quantity: qty, rate: price, status, paidAmount: paidNow,
+      customer, soldBy: session.user.id,
+    })
+    const { error } = await supabase.from('sales').insert(serviceRow)
     if (error) { setMessage({ type: 'error', text: error.message }); setSaving(false); return }
 
     setMessage({ type: 'success', text: `Recorded ${qty} plate/piece${qty === 1 ? '' : 's'} at ${price.toLocaleString()} UGX each. Maya stock was not deducted.` })
