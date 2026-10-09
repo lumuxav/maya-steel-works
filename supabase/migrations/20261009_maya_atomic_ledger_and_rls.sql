@@ -243,7 +243,7 @@ REVOKE INSERT ON public.debt_events FROM PUBLIC, authenticated;
 REVOKE INSERT ON public.stock_movements FROM PUBLIC, authenticated;
 CREATE OR REPLACE FUNCTION private.maya_active_member() RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
-AS $
+AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.users
     WHERE id=auth.uid() AND active IS TRUE AND coalesce(branch,'Maya Branch')='Maya Branch'
