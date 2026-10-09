@@ -237,29 +237,41 @@ $$;
 REVOKE ALL ON FUNCTION public.maya_ledger(text,jsonb,uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.maya_ledger(text,jsonb,uuid) TO authenticated;
 
-REVOKE INSERT ON public.sales FROM authenticated;
-REVOKE INSERT ON public.production_log FROM authenticated;
-REVOKE INSERT ON public.debt_events FROM authenticated;
-REVOKE INSERT ON public.stock_movements FROM authenticated;
+REVOKE INSERT ON public.sales FROM PUBLIC, authenticated;
+REVOKE INSERT ON public.production_log FROM PUBLIC, authenticated;
+REVOKE INSERT ON public.debt_events FROM PUBLIC, authenticated;
+REVOKE INSERT ON public.stock_movements FROM PUBLIC, authenticated;
+CREATE OR REPLACE FUNCTION private.maya_active_member() RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
+AS $
+  SELECT EXISTS (
+    SELECT 1 FROM public.users
+    WHERE id=auth.uid() AND active IS TRUE AND coalesce(branch,'Maya Branch')='Maya Branch'
+  )
+$;
+REVOKE ALL ON FUNCTION private.maya_active_member() FROM PUBLIC;
+GRANT USAGE ON SCHEMA private TO authenticated;
+GRANT EXECUTE ON FUNCTION private.maya_active_member() TO authenticated;
+
 DROP POLICY IF EXISTS sales_update_auth ON public.sales;
 DROP POLICY IF EXISTS sales_update ON public.sales;
 CREATE POLICY maya_sales_update_admin ON public.sales FOR UPDATE TO authenticated
-USING ((select private.require_active_maya_user()) IN ('admin','super_admin'))
-WITH CHECK ((select private.require_active_maya_user()) IN ('admin','super_admin'));
+USING (((select private.maya_active_member()) AND (select public.get_user_role()) IN ('admin','super_admin')))
+WITH CHECK (((select private.maya_active_member()) AND (select public.get_user_role()) IN ('admin','super_admin')));
 DROP POLICY IF EXISTS sales_select ON public.sales;
 CREATE POLICY maya_sales_select ON public.sales FOR SELECT TO authenticated
-USING ((select private.require_active_maya_user()) IS NOT NULL);
+USING ((select private.maya_active_member()));
 DROP POLICY IF EXISTS debt_select ON public.debt_events;
 CREATE POLICY maya_debt_select ON public.debt_events FOR SELECT TO authenticated
-USING ((select private.require_active_maya_user()) IS NOT NULL);
+USING ((select private.maya_active_member()));
 DROP POLICY IF EXISTS debt_update ON public.debt_events;
 CREATE POLICY maya_debt_update_admin ON public.debt_events FOR UPDATE TO authenticated
-USING ((select private.require_active_maya_user()) IN ('admin','super_admin'))
-WITH CHECK ((select private.require_active_maya_user()) IN ('admin','super_admin'));
+USING (((select private.maya_active_member()) AND (select public.get_user_role()) IN ('admin','super_admin')))
+WITH CHECK (((select private.maya_active_member()) AND (select public.get_user_role()) IN ('admin','super_admin')));
 DROP POLICY IF EXISTS bank_insert ON public.bankings;
 CREATE POLICY maya_bank_insert ON public.bankings FOR INSERT TO authenticated
 WITH CHECK (
-  (select private.require_active_maya_user()) IS NOT NULL
+  (select private.maya_active_member())
   AND recorded_by=(select auth.uid())
   AND status='pending' AND amount_banked>0
   AND banking_date>='2026-10-12'::date
@@ -267,20 +279,10 @@ WITH CHECK (
 DROP POLICY IF EXISTS exp_insert ON public.expenses;
 CREATE POLICY maya_expense_insert ON public.expenses FOR INSERT TO authenticated
 WITH CHECK (
-  (select private.require_active_maya_user()) IS NOT NULL
+  (select private.maya_active_member())
   AND recorded_by=(select auth.uid()) AND amount>0
 );
 
-CREATE OR REPLACE FUNCTION private.maya_active_member() RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.users
-    WHERE id=auth.uid() AND active IS TRUE AND coalesce(branch,'Maya Branch')='Maya Branch'
-  )
-$$;
-REVOKE ALL ON FUNCTION private.maya_active_member() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION private.maya_active_member() TO authenticated;
 DO $$
 DECLARE v record;
 BEGIN
