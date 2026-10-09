@@ -7,6 +7,8 @@ on:
       - main
     paths:
       - 'capacitor.config.json'
+      - 'app/components/NativeBackNavigation.js'
+      - 'app/layout.js'
       - 'mobile-shell/**'
       - 'assets/logo.svg'
       - '.github/workflows/build-android-apk.yml'
