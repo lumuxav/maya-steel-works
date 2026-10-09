@@ -75,9 +75,10 @@ export default function SalesPage() {
 
   const requestRef = useRef(null)
   const runTransaction = async (operation, data) => {
-    if (!requestRef.current) requestRef.current = crypto.randomUUID()
+    const signature = JSON.stringify([operation, data])
+    if (!requestRef.current || requestRef.current.signature !== signature) requestRef.current = { id: crypto.randomUUID(), signature }
     const { error } = await supabase.rpc('maya_ledger', {
-      p_operation: operation, p_data: data, p_request_id: requestRef.current,
+      p_operation: operation, p_data: data, p_request_id: requestRef.current.id,
     })
     if (!error) requestRef.current = null
     return error?.message || null
