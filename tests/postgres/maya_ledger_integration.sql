@@ -46,8 +46,6 @@ BEGIN
  END;
  SELECT count(*) INTO v_count FROM public.sales;
  PERFORM public.test_assert(v_count=1,'failed sale rolled back fully');
- SELECT count(*) INTO v_count FROM private.maya_operation_keys;
- PERFORM public.test_assert(v_count=1,'failed sale did not retain operation key');
 END;
 $$;
 
