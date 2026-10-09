@@ -81,3 +81,5 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f tests/postgres/maya_premigration_policies.sql
           psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261009_maya_atomic_ledger_and_rls.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/postgres/maya_ledger_integration.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261009_maya_atomic_corrections_and_grants.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/postgres/maya_corrections_integration.sql
