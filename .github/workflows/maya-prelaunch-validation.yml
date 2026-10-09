@@ -49,3 +49,35 @@ jobs:
             sleep 1
           done
           node scripts/maya-route-smoke.mjs
+
+  atomic-ledger-database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: maya-test-only
+          POSTGRES_DB: maya_fixture
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d maya_fixture"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout Maya repository
+        uses: actions/checkout@v4
+      - name: Run isolated PostgreSQL Maya transaction and RLS tests
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: maya-test-only
+          PGDATABASE: maya_fixture
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f tests/postgres/maya_fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/postgres/maya_premigration_policies.sql
+          psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261009_maya_atomic_ledger_and_rls.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/postgres/maya_ledger_integration.sql
