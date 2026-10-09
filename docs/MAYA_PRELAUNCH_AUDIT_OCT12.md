@@ -7,12 +7,13 @@
 
 ## Verified automated results
 
-- 41 passing Node tests for October 12 launch, Kampala day boundaries, cash-book carry-forward, credit, repayments, service income and banking.
+- 58 passing Node tests for October 12 launch, Kampala day boundaries, cash-book carry-forward, credit, repayments, service income and banking.
 - Focused ESLint passes for the new business-rule module and tests.
 - Next.js optimized production build passes with inert CI environment placeholders and **does not use live Supabase credentials**.
 - Maya Supabase showed 4 user profiles, 0 sales, 0 expenses, 0 debt events, 0 stock movements and 0 customer-material records at audit time.
 - Main business tables have RLS enabled; **enabled RLS does not automatically mean the existing policies are sufficiently restrictive**.
-- The Cash Book now fetches independent records concurrently and avoids heavy queries on the pre-launch screen.
+- The Cash Book now fetches independent records concurrently and avoids heavy queries on the pre-launch screen. Client-side forms now reject negative/zero sales, production counts, stocktake counts, expenses and bankings; database-level checks are still required.
+- Customer-owned-material services no longer require an unrelated Maya stock item to exist: a service sale uses `item_type='service'` and the non-inventory sentinel `item_id=0`, permitted by the current sales table schema (no stock-item foreign key). The service payload has 17 focused tests.
 - Cash opening balances deduct confirmed banking, not unconfirmed/pending banking.
 - The official date is stored in `lib/mayaBusiness.mjs`; test `npm run test:logic`.
 
@@ -49,7 +50,7 @@
 
 ## Release gate
 
-A successful CI build and 41 unit tests **do not certify the entire app**. The application should not be represented as fully production-ready until the P0 issues are repaired and key end-to-end cases pass in isolated staging. Do not test destructive workflows against Maya's live operational database.
+A successful CI build and 58 unit tests **do not certify the entire app**. The application should not be represented as fully production-ready until the P0 issues are repaired and key end-to-end cases pass in isolated staging. Do not test destructive workflows against Maya's live operational database.
 
 ## Keeping the domain later
 
