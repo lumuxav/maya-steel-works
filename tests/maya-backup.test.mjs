@@ -1,12 +1,19 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { validateMayaBackupConfig, backupArtifactSummary } from '../lib/mayaBackup.mjs'
+import { validateMayaBackupConfig, backupArtifactSummary, normalizeMayaBackupRecipient } from '../lib/mayaBackup.mjs'
 
 const recipient = 'age1' + 'q'.repeat(58)
 const mayaUrl = 'postgresql://postgres:secret%231@db.pgaonchvddcnlssigelt.supabase.co:5432/postgres?sslmode=require'
 const mayaPool = 'postgresql://postgres.pgaonchvddcnlssigelt:secret@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require'
 
+test('trims surrounding whitespace before encrypting to an age public recipient', () => {
+  assert.equal(normalizeMayaBackupRecipient('  ' + recipient + '\r\n'), recipient)
+  assert.equal(validateMayaBackupConfig(mayaUrl, '  ' + recipient + '\n'), null)
+})
+test('rejects invalid recipients after trimming', () => {
+  assert.ok(validateMayaBackupConfig(mayaUrl, '  age1invalid  '))
+})
 test('accepts only Maya direct Supabase PostgreSQL connection', () => assert.equal(validateMayaBackupConfig(mayaUrl, recipient), null))
 test('accepts dedicated Maya session pooler', () => assert.equal(validateMayaBackupConfig(mayaPool, recipient), null))
 test('rejects Universal or any other project database', () => assert.ok(validateMayaBackupConfig(mayaUrl.replaceAll('pgaonchvddcnlssigelt','otherprojectref'), recipient)))
@@ -46,5 +53,7 @@ test('unencrypted pg_dump lives only inside temporary directory', () => {
   assert.match(script,/WORK="\$\(mktemp -d\)"/)
   assert.match(script,/trap cleanup EXIT/)
   assert.match(script,/pg_restore --list/)
+  assert.match(script,/normalizeMayaBackupRecipient/)
+  assert.match(script,/age-recipient-preflight/)
   assert.match(script,/age -r/)
 })

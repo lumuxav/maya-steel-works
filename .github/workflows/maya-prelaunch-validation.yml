@@ -78,7 +78,13 @@ jobs:
           sudo chmod 644 /tmp/maya-synthetic.dump
           age-keygen -o "$RUNNER_TEMP/maya-synthetic-identity.txt" >/dev/null 2>&1
           AGE_RECIPIENT="$(age-keygen -y "$RUNNER_TEMP/maya-synthetic-identity.txt")"
-          age -r "$AGE_RECIPIENT" -o "$RUNNER_TEMP/maya-synthetic.age" /tmp/maya-synthetic.dump
+          MAYA_BACKUP_AGE_RECIPIENT="  $AGE_RECIPIENT "
+          export MAYA_BACKUP_AGE_RECIPIENT
+          CLEAN_RECIPIENT="$(node --input-type=module -e '
+            import {normalizeMayaBackupRecipient} from "./lib/mayaBackup.mjs"
+            process.stdout.write(normalizeMayaBackupRecipient(process.env.MAYA_BACKUP_AGE_RECIPIENT))
+          ')"
+          age -r "$CLEAN_RECIPIENT" -o "$RUNNER_TEMP/maya-synthetic.age" /tmp/maya-synthetic.dump
           age -d -i "$RUNNER_TEMP/maya-synthetic-identity.txt" -o "$RUNNER_TEMP/maya-synthetic-restored.dump" "$RUNNER_TEMP/maya-synthetic.age"
           cmp /tmp/maya-synthetic.dump "$RUNNER_TEMP/maya-synthetic-restored.dump"
           sudo cp "$RUNNER_TEMP/maya-synthetic-restored.dump" /tmp/maya-synthetic-restored.dump

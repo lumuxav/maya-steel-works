@@ -13,6 +13,11 @@ const issue = validateMayaBackupConfig(process.env.MAYA_BACKUP_DATABASE_URL, pro
 if (issue) { console.error("::error::" + issue); process.exit(1) }
 '
 
+export MAYA_BACKUP_AGE_RECIPIENT="$(node --input-type=module -e '
+import { normalizeMayaBackupRecipient } from "./lib/mayaBackup.mjs"
+process.stdout.write(normalizeMayaBackupRecipient(process.env.MAYA_BACKUP_AGE_RECIPIENT))
+')"
+
 command -v pg_dump >/dev/null || { echo "::error::pg_dump missing"; exit 1; }
 command -v pg_restore >/dev/null || { echo "::error::pg_restore missing"; exit 1; }
 command -v age >/dev/null || { echo "::error::age encryption missing"; exit 1; }
@@ -38,6 +43,11 @@ DUMP="$WORK/maya-postgres.dump"
 ARCHIVE="$WORK/maya-backup.tar"
 ENCRYPTED="$OUTPUT_DIR/maya-steel-works-$STAMP.tar.age"
 
+if ! printf 'Maya recipient preflight\n' | age -r "$MAYA_BACKUP_AGE_RECIPIENT" -o "$WORK/age-recipient-preflight.age"; then
+  echo "::error::Maya encryption recipient is invalid. Verify the age1... public key in GitHub Repository Variables." >&2
+  exit 1
+fi
+echo "Maya public encryption recipient validated."
 echo "Creating consistent, read-only PostgreSQL backup for the dedicated Maya database..."
 pg_dump \
   --dbname="$MAYA_BACKUP_DATABASE_URL" \
