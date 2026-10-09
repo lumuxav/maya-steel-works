@@ -29,7 +29,7 @@ jobs:
       - name: Run Maya financial and calendar regression tests
         run: npm run test:logic
       - name: Lint Maya business rules and tests
-        run: npx eslint lib/mayaBusiness.mjs lib/mayaPasswordPolicy.mjs tests/maya-business-logic.test.mjs tests/maya-password-policy.test.mjs
+        run: npx eslint lib/mayaBusiness.mjs lib/mayaPasswordPolicy.mjs lib/mayaBackup.mjs tests/maya-business-logic.test.mjs tests/maya-password-policy.test.mjs tests/maya-backup.test.mjs
       - name: Build Maya Next.js application (no live database access)
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
@@ -69,3 +69,20 @@ jobs:
           sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d maya_fixture -f tests/postgres/maya_ledger_integration.sql
           sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d maya_fixture -f supabase/migrations/20261009_maya_atomic_corrections_and_grants.sql
           sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d maya_fixture -f tests/postgres/maya_corrections_integration.sql
+      - name: Exercise encryption, decryption and isolated PostgreSQL restore
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends age
+          sudo -u postgres pg_dump -Fc --no-owner --no-acl -f /tmp/maya-synthetic.dump maya_fixture
+          sudo chmod 644 /tmp/maya-synthetic.dump
+          age-keygen -o "$RUNNER_TEMP/maya-synthetic-identity.txt" >/dev/null 2>&1
+          AGE_RECIPIENT="$(age-keygen -y "$RUNNER_TEMP/maya-synthetic-identity.txt")"
+          age -r "$AGE_RECIPIENT" -o "$RUNNER_TEMP/maya-synthetic.age" /tmp/maya-synthetic.dump
+          age -d -i "$RUNNER_TEMP/maya-synthetic-identity.txt" -o "$RUNNER_TEMP/maya-synthetic-restored.dump" "$RUNNER_TEMP/maya-synthetic.age"
+          cmp /tmp/maya-synthetic.dump "$RUNNER_TEMP/maya-synthetic-restored.dump"
+          sudo cp "$RUNNER_TEMP/maya-synthetic-restored.dump" /tmp/maya-synthetic-restored.dump
+          sudo chmod 644 /tmp/maya-synthetic-restored.dump
+          sudo -u postgres createdb maya_synthetic_restore
+          sudo -u postgres pg_restore --exit-on-error --no-owner --no-acl -d maya_synthetic_restore /tmp/maya-synthetic-restored.dump
+          sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d maya_synthetic_restore -c "SELECT count(*) AS restored_sales FROM public.sales"
