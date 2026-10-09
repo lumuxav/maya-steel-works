@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: maya-supabase-keepalive
+  cancel-in-progress: false
+
 jobs:
   ping-production-database:
     name: Ping Maya production database
@@ -21,17 +25,38 @@ jobs:
           HEALTHCHECK_SECRET: ${{ secrets.MAYA_HEALTHCHECK_SECRET }}
         run: |
           if [ -z "$HEALTHCHECK_SECRET" ]; then
-            echo "MAYA_HEALTHCHECK_SECRET is not configured in GitHub Actions secrets."
+            echo "::error::MAYA_HEALTHCHECK_SECRET is missing. Add it in Maya GitHub repository Actions secrets."
             exit 1
           fi
 
-      - name: Query Maya health endpoint
+      - name: Query actual Maya Supabase database
         shell: bash
         env:
           HEALTHCHECK_SECRET: ${{ secrets.MAYA_HEALTHCHECK_SECRET }}
         run: |
-          RESPONSE="$(curl --fail --silent --show-error --retry 3 --retry-delay 10 \
+          set -euo pipefail
+          RESPONSE="$(curl --fail --silent --show-error --location \
+            --connect-timeout 15 --max-time 45 \
+            --retry 3 --retry-delay 10 --retry-all-errors \
             -H "Authorization: Bearer $HEALTHCHECK_SECRET" \
+            -H "Cache-Control: no-cache" \
             https://maya-steel-works-mgt.vercel.app/api/health/supabase)"
-          echo "$RESPONSE"
-          echo "$RESPONSE" | grep -q '"ok":true'
+          printf '%s' "$RESPONSE" | node -e '
+            let input = "";
+            process.stdin.on("data", chunk => input += chunk);
+            process.stdin.on("end", () => {
+              const result = JSON.parse(input);
+              const checkedAt = Date.parse(result.checked_at || "");
+              const age = Date.now() - checkedAt;
+              if (result.ok !== true || result.database !== "reachable" ||
+                  result.service !== "maya-steel-works" ||
+                  !Number.isFinite(age) || age < -60000 || age > 180000) {
+                console.error("Maya health response failed integrity or freshness checks.");
+                process.exitCode = 1;
+                return;
+              }
+              console.log("Maya Supabase DB query succeeded at " + result.checked_at);
+            });
+          '
+          echo "### Maya Supabase health" >> "$GITHUB_STEP_SUMMARY"
+          echo "Actual database-backed health endpoint returned a fresh, successful result." >> "$GITHUB_STEP_SUMMARY"
