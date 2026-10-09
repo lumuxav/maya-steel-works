@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { SYSTEM_BRANCH, getSystemUserIds } from '../../lib/branch'
@@ -32,6 +32,8 @@ export default function CashbookPage() {
   const [bankNotes, setBankNotes] = useState('')
   const [message, setMessage] = useState(null)
   const [loading, setLoading] = useState(true)
+  const confirmationIds = useRef({})
+  const [confirmingId, setConfirmingId] = useState(null)
 
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin'
   const isSuper = profile?.role === 'super_admin'
@@ -177,9 +179,27 @@ export default function CashbookPage() {
     else { setMessage(flagged ? { type: 'warn', text: `Banking saved and flagged. Difference: ${variance.toLocaleString()} UGX.` } : { type: 'success', text: 'Banking recorded and awaiting confirmation.' }); setBankAmount(''); setBankMethod(''); setBankNotes(''); load() }
   }
   const confirmBanking = async (b) => {
+    if (!isAdmin || confirmingId) return
     if (!window.confirm(`Confirm ${Number(b.amount_banked).toLocaleString()} UGX banked on ${b.banking_date}?`)) return
-    const { error } = await supabase.from('bankings').update({ status: 'confirmed', confirmed_by: userId, confirmed_at: new Date().toISOString() }).eq('id', b.id)
-    if (error) setMessage({ type: 'error', text: error.message }); else { setMessage({ type: 'success', text: 'Banking confirmed.' }); load() }
+    const operationId = confirmationIds.current[b.id] || crypto.randomUUID()
+    confirmationIds.current[b.id] = operationId
+    setConfirmingId(b.id)
+    try {
+      const { error } = await supabase.rpc('maya_correct_record', {
+        p_table: 'bankings', p_row_id: b.id,
+        p_changes: { status: 'confirmed' },
+        p_reason: 'Banking confirmed by management',
+        p_request_id: operationId,
+      })
+      if (error) throw error
+      delete confirmationIds.current[b.id]
+      setMessage({ type: 'success', text: 'Banking confirmed and recorded in the correction audit.' })
+      await load()
+    } catch (error) {
+      setMessage({ type: 'error', text: error?.message || 'Could not confirm banking.' })
+    } finally {
+      setConfirmingId(null)
+    }
   }
 
   if (!profile || loading) return <main className="page-wrap text-muted">Loading cash book...</main>
