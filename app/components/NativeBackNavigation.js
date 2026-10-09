@@ -48,61 +48,81 @@ export default function NativeBackNavigation() {
   useEffect(() => {
     let listener = null
     let cancelled = false
+    let retryTimer = null
+    let attempts = 0
+    const maxAttempts = 40
 
-    const setup = async () => {
-      const capacitor = window.Capacitor
-      if (!capacitor?.isNativePlatform?.()) return
+    const backAction = (app) => {
+      const currentPath = currentPathRef.current || '/'
+      const onExitScreen = currentPath === '/' || currentPath === '/login'
 
-      const app = capacitor.Plugins?.App || capacitor.registerPlugin?.('App')
-      if (!app?.addListener) return
-
-      try {
-        listener = await app.addListener('backButton', () => {
-          const currentPath = currentPathRef.current || '/'
-          const onExitScreen = currentPath === '/' || currentPath === '/login'
-
-          if (onExitScreen) {
-            const now = Date.now()
-            if (now - lastExitPressRef.current <= EXIT_WINDOW_MS) {
-              lastExitPressRef.current = 0
-              setShowExitHint(false)
-              if (exitTimerRef.current) window.clearTimeout(exitTimerRef.current)
-              app.exitApp?.()
-              return
-            }
-
-            lastExitPressRef.current = now
-            setShowExitHint(true)
-            if (exitTimerRef.current) window.clearTimeout(exitTimerRef.current)
-            exitTimerRef.current = window.setTimeout(() => {
-              lastExitPressRef.current = 0
-              setShowExitHint(false)
-            }, EXIT_WINDOW_MS)
-            return
-          }
-
+      if (onExitScreen) {
+        const now = Date.now()
+        if (now - lastExitPressRef.current <= EXIT_WINDOW_MS) {
           lastExitPressRef.current = 0
           setShowExitHint(false)
-          const stack = routeStackRef.current
-          if (stack[stack.length - 1] === currentPath) stack.pop()
-          const previous = stack[stack.length - 1] || '/'
-          pendingBackRef.current = previous
-          if (stack.length === 0) routeStackRef.current = ['/']
-          router.replace(previous)
-        })
+          if (exitTimerRef.current) window.clearTimeout(exitTimerRef.current)
+          app.exitApp?.()
+          return
+        }
 
+        lastExitPressRef.current = now
+        setShowExitHint(true)
+        if (exitTimerRef.current) window.clearTimeout(exitTimerRef.current)
+        exitTimerRef.current = window.setTimeout(() => {
+          lastExitPressRef.current = 0
+          setShowExitHint(false)
+        }, EXIT_WINDOW_MS)
+        return
+      }
+
+      lastExitPressRef.current = 0
+      setShowExitHint(false)
+      if (pendingBackRef.current) return
+
+      const stack = routeStackRef.current
+      if (stack[stack.length - 1] === currentPath) stack.pop()
+      const previous = stack[stack.length - 1] || '/'
+      pendingBackRef.current = previous
+      if (stack.length === 0) routeStackRef.current = ['/']
+      router.replace(previous)
+    }
+
+    const retry = () => {
+      if (cancelled || attempts >= maxAttempts) return
+      attempts += 1
+      retryTimer = window.setTimeout(connect, 250)
+    }
+
+    const connect = async () => {
+      if (cancelled) return
+      const capacitor = window.Capacitor
+      if (!capacitor?.isNativePlatform?.()) {
+        retry()
+        return
+      }
+
+      const app = capacitor.Plugins?.App || capacitor.registerPlugin?.('App')
+      if (!app?.addListener) {
+        retry()
+        return
+      }
+
+      try {
+        listener = await app.addListener('backButton', () => backAction(app))
         if (cancelled) listener?.remove?.()
       } catch {
-        listener = null
+        retry()
       }
     }
 
-    setup()
+    connect()
 
     return () => {
       cancelled = true
-      listener?.remove?.()
+      if (retryTimer) window.clearTimeout(retryTimer)
       if (exitTimerRef.current) window.clearTimeout(exitTimerRef.current)
+      listener?.remove?.()
     }
   }, [router])
 
