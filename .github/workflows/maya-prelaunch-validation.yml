@@ -30,5 +30,8 @@ jobs:
         run: npm run test:logic
       - name: Lint Maya business rules and tests
         run: npx eslint lib/mayaBusiness.mjs tests/maya-business-logic.test.mjs
-      - name: Build Maya Next.js application
+      - name: Build Maya Next.js application (no live database access)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-public-key-no-live-access
         run: npm run build
