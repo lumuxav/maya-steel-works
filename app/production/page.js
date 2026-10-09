@@ -60,7 +60,7 @@ export default function ProductionPage() {
     e.preventDefault(); setSaving(true); setMessage(null)
     if (!recipe || !batch) { setMessage({ type: 'error', text: 'Choose a production standard and Maya Branch stock batch.' }); setSaving(false); return }
     const u = Number(units), p = Number(produced)
-    if (!u || !p) { setMessage({ type: 'error', text: 'Enter raw units used and pieces produced.' }); setSaving(false); return }
+    if (![u,p].every(Number.isFinite) || u <= 0 || p <= 0 || !Number.isFinite(Number(scrap || 0)) || Number(scrap || 0) < 0) { setMessage({ type: 'error', text: 'Raw units and output must be positive, and scrap must not be negative.' }); setSaving(false); return }
     if (u > batch.quantity) { setMessage({ type: 'error', text: `Only ${batch.quantity} ${batch.unit} available at Maya Branch.` }); setSaving(false); return }
 
     let fg = null
