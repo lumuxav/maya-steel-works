@@ -1,0 +1,34 @@
+name: Maya pre-launch regression tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  logic-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Maya repository
+        uses: actions/checkout@v4
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install exactly locked packages
+        run: npm ci
+      - name: Run Maya financial and calendar regression tests
+        run: npm run test:logic
+      - name: Lint Maya business rules and tests
+        run: npx eslint lib/mayaBusiness.mjs tests/maya-business-logic.test.mjs
+      - name: Build Maya Next.js application
+        run: npm run build
