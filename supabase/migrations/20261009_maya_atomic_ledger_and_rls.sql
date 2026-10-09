@@ -248,7 +248,7 @@ AS $$
     SELECT 1 FROM public.users
     WHERE id=auth.uid() AND active IS TRUE AND coalesce(branch,'Maya Branch')='Maya Branch'
   )
-$;
+$$;
 REVOKE ALL ON FUNCTION private.maya_active_member() FROM PUBLIC;
 GRANT USAGE ON SCHEMA private TO authenticated;
 GRANT EXECUTE ON FUNCTION private.maya_active_member() TO authenticated;
