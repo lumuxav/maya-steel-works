@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { SYSTEM_BRANCH, getSystemUserIds } from '../../lib/branch'
+import { MAYA_LAUNCH_DAY, mayaBusinessDay, addBusinessDays, businessArchiveDays, saleCashAtTransaction, receivedOnDay, openingCashForDay as calculateOpeningCash, closingCash } from '../../lib/mayaBusiness.mjs'
 
 const TOLERANCE = 1
-const PRODUCTION_START_DAY = '2026-10-10'
-const toDayStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const PRODUCTION_START_DAY = MAYA_LAUNCH_DAY
 
 export default function CashbookPage() {
-  const todayStr = toDayStr(new Date())
+  const todayStr = mayaBusinessDay()
   const [profile, setProfile] = useState(null)
   const [userId, setUserId] = useState(null)
   const [entryMode, setEntryMode] = useState(false)
@@ -38,35 +38,45 @@ export default function CashbookPage() {
   const canEnter = !isAdmin || entryMode
 
   const load = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return (window.location.href = '/login')
-    setUserId(session.user.id)
-    const { data: prof } = await supabase.from('users').select('full_name, role, branch').eq('id', session.user.id).single()
-    setProfile(prof)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return (window.location.href = '/login')
+      setUserId(session.user.id)
 
-    const systemUsers = await getSystemUserIds(supabase)
-    const { data: users } = await supabase.from('users').select('id, full_name, branch')
-    const systemProfiles = (users || []).filter(u => systemUsers.has(u.id))
-    setUserMap(Object.fromEntries(systemProfiles.map(u => [u.id, u])))
+      const [profileRes, systemUsers, usersRes, salesRes, expensesRes, bankingsRes, eventsRes, categoriesRes] = await Promise.all([
+        supabase.from('users').select('full_name, role, branch').eq('id', session.user.id).single(),
+        getSystemUserIds(supabase),
+        supabase.from('users').select('id, full_name, branch'),
+        supabase.from('sales').select('*').order('created_at', { ascending: false }).limit(1000),
+        supabase.from('expenses').select('*').order('created_at', { ascending: false }).limit(1000),
+        supabase.from('bankings').select('*').order('created_at', { ascending: false }).limit(1000),
+        supabase.from('debt_events').select('*').order('created_at', { ascending: false }).limit(1000),
+        supabase.from('expense_categories').select('*').order('name')
+      ])
+      const errors = [profileRes, usersRes, salesRes, expensesRes, bankingsRes, eventsRes, categoriesRes].map((res) => res.error).filter(Boolean)
+      if (errors.length) throw new Error(errors[0].message)
+      const prof = profileRes.data
+      if (!prof) throw new Error('Your Maya staff profile is unavailable.')
+      setProfile(prof)
 
-    const { data: s } = await supabase.from('sales').select('*').order('created_at', { ascending: false }).limit(1000)
-    const branchSales = (s || []).filter(x => systemUsers.has(x.sold_by))
-    setSales((prof?.role === 'admin' || prof?.role === 'super_admin') ? branchSales : branchSales.filter(x => x.sold_by === session.user.id))
-    const branchSaleIds = new Set(branchSales.map(x => x.id))
-
-    const { data: exps } = await supabase.from('expenses').select('*').order('created_at', { ascending: false }).limit(1000)
-    setExpenses((exps || []).filter(x => systemUsers.has(x.recorded_by)))
-
-    const { data: banks } = await supabase.from('bankings').select('*').order('created_at', { ascending: false }).limit(1000)
-    setBankings((banks || []).filter(x => systemUsers.has(x.recorded_by)))
-
-    const { data: ev } = await supabase.from('debt_events').select('*').order('created_at', { ascending: false }).limit(1000)
-    setEvents((ev || []).filter(x => (x.sale_id && branchSaleIds.has(x.sale_id)) || (!x.sale_id && systemUsers.has(x.received_by))))
-
-    const { data: cats } = await supabase.from('expense_categories').select('*').order('name')
-    setCategories(cats || [])
-    if ((cats || []).length && !(cats || []).some(c => c.name === expCat)) setExpCat(cats[0].name)
-    setLoading(false)
+      const systemProfiles = (usersRes.data || []).filter((user) => systemUsers.has(user.id))
+      setUserMap(Object.fromEntries(systemProfiles.map((user) => [user.id, user])))
+      const branchSales = (salesRes.data || []).filter((sale) => systemUsers.has(sale.sold_by))
+      setSales((prof.role === 'admin' || prof.role === 'super_admin')
+        ? branchSales : branchSales.filter((sale) => sale.sold_by === session.user.id))
+      const branchSaleIds = new Set(branchSales.map((sale) => sale.id))
+      setExpenses((expensesRes.data || []).filter((exp) => systemUsers.has(exp.recorded_by)))
+      setBankings((bankingsRes.data || []).filter((bank) => systemUsers.has(bank.recorded_by)))
+      setEvents((eventsRes.data || []).filter((event) =>
+        (event.sale_id && branchSaleIds.has(event.sale_id)) || (!event.sale_id && systemUsers.has(event.received_by))))
+      const categories = categoriesRes.data || []
+      setCategories(categories)
+      if (categories.length) setExpCat((current) => categories.some((cat) => cat.name === current) ? current : categories[0].name)
+    } catch (error) {
+      setMessage({ type: 'error', text: error?.message || 'Could not load cash records. Please try again.' })
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [])
@@ -78,28 +88,11 @@ export default function CashbookPage() {
     }
   }, [todayStr])
 
-  const payBySale = useMemo(() => {
-    const map = {}
-    events.forEach(e => { if (e.event_type === 'payment' && e.sale_id) map[e.sale_id] = (map[e.sale_id] || 0) + Number(e.amount) })
-    return map
-  }, [events])
-
-  const saleTimePaid = (s) => Math.max(0, Number(s.amount_paid) - (payBySale[s.id] || 0))
-  const collectedOnDay = (day) => {
-    const atSale = sales.filter(s => toDayStr(new Date(s.created_at)) === day).reduce((sum, s) => sum + saleTimePaid(s), 0)
-    const later = events.filter(e => e.event_type === 'payment' && toDayStr(new Date(e.created_at)) === day).reduce((sum, e) => sum + Number(e.amount), 0)
-    return atSale + later
-  }
-  const inDay = (t, day) => toDayStr(new Date(t)) === day
-  const visibleExpenses = expenses.filter(e => isAdmin || e.recorded_by === userId)
-
-  const openingCashForDay = (day) => {
-    const priorCash = sales.filter(s => toDayStr(new Date(s.created_at)) < day && toDayStr(new Date(s.created_at)) >= PRODUCTION_START_DAY).reduce((sum, s) => sum + saleTimePaid(s), 0)
-      + events.filter(e => e.event_type === 'payment' && toDayStr(new Date(e.created_at)) < day && toDayStr(new Date(e.created_at)) >= PRODUCTION_START_DAY).reduce((sum, e) => sum + Number(e.amount), 0)
-    const priorExpenses = visibleExpenses.filter(e => toDayStr(new Date(e.created_at)) < day && toDayStr(new Date(e.created_at)) >= PRODUCTION_START_DAY).reduce((sum, e) => sum + Number(e.amount), 0)
-    const priorBanked = bankings.filter(b => b.banking_date < day && b.banking_date >= PRODUCTION_START_DAY).reduce((sum, b) => sum + Number(b.amount_banked), 0)
-    return Math.max(0, priorCash - priorExpenses - priorBanked)
-  }
+  const saleTimePaid = (sale) => saleCashAtTransaction(sale, events)
+  const collectedOnDay = (day) => receivedOnDay(sales, events, day)
+  const inDay = (timestamp, day) => mayaBusinessDay(timestamp) === day
+  const visibleExpenses = expenses.filter((expense) => isAdmin || expense.recorded_by === userId)
+  const openingCashForDay = (day) => calculateOpeningCash(sales, events, visibleExpenses, bankings, day, PRODUCTION_START_DAY)
 
   const dayExpenses = visibleExpenses.filter(e => inDay(e.created_at, selectedDay))
   const dayBankings = bankings.filter(b => b.banking_date === selectedDay)
@@ -115,35 +108,25 @@ export default function CashbookPage() {
   const expTotal = dayExpenses.reduce((s, x) => s + Number(x.amount), 0)
   const bankedConfirmed = dayBankings.filter(b => b.status === 'confirmed').reduce((s, b) => s + Number(b.amount_banked), 0)
   const bankedPending = dayBankings.filter(b => b.status === 'pending').reduce((s, b) => s + Number(b.amount_banked), 0)
-  const expectedNow = Math.max(0, openingCash + cashIn - expTotal - bankedConfirmed - bankedPending)
+  const expectedNow = closingCash(openingCash, cashIn, expTotal, bankedConfirmed)
   const bankVariance = bankAmount !== '' ? Number(bankAmount) - expectedNow : null
   const willFlag = bankVariance !== null && Math.abs(bankVariance) >= TOLERANCE
   const flaggedPending = bankings.filter(b => b.flagged && b.status === 'pending' && b.banking_date >= PRODUCTION_START_DAY)
 
-  const archiveDays = []
-  const [startY, startM, startD] = systemStartDay.split('-').map(Number)
-  const [endY, endM, endD] = todayStr.split('-').map(Number)
-  const cursor = new Date(startY, startM - 1, startD)
-  const endDate = new Date(endY, endM - 1, endD)
-  while (cursor <= endDate) {
-    archiveDays.push(toDayStr(cursor))
-    cursor.setDate(cursor.getDate() + 1)
-  }
-  archiveDays.reverse()
+  const archiveDays = businessArchiveDays(systemStartDay, todayStr)
 
   const daySummary = (day) => {
     const open = openingCashForDay(day)
     const cIn = collectedOnDay(day)
     const eT = visibleExpenses.filter(e => inDay(e.created_at, day)).reduce((s, x) => s + Number(x.amount), 0)
-    const bT = bankings.filter(b => b.banking_date === day).reduce((s, b) => s + Number(b.amount_banked), 0)
-    const closing = Math.max(0, open + cIn - eT - bT)
+    const bT = bankings.filter(b => b.banking_date === day && b.status === 'confirmed').reduce((s, b) => s + Number(b.amount_banked), 0)
+    const closing = closingCash(open, cIn, eT, bT)
     const flags = bankings.filter(b => b.banking_date === day && b.flagged).length
     return { open, cIn, eT, bT, closing, flags }
   }
 
   const shiftDay = (delta) => {
-    const [y, m, d] = selectedDay.split('-').map(Number)
-    const nd = toDayStr(new Date(y, m - 1, d + delta))
+    const nd = addBusinessDays(selectedDay, delta)
     if (nd < PRODUCTION_START_DAY || nd > todayStr) return
     setSelectedDay(nd)
     setBankDate(nd)
@@ -194,7 +177,7 @@ export default function CashbookPage() {
         </div>
         <section className="page-card max-w-3xl p-7 sm:p-9">
           <p className="page-eyebrow">Fresh start</p>
-          <h2 className="text-2xl font-black">Cash Book opens 10 October 2026</h2>
+          <h2 className="text-2xl font-black">Cash Book opens Monday, 12 October 2026</h2>
           <p className="mt-3 text-sm text-muted">The business archive begins on the first operating day. No empty September or earlier October dates will appear. Sales, expenses, banking and carried-forward cash will be tracked from the launch date.</p>
         </section>
       </main>
@@ -239,7 +222,7 @@ export default function CashbookPage() {
       <section className="mb-10 max-w-3xl"><h2 className="mb-2 text-lg font-black">Banking — {selectedDay}</h2><div className="page-card border-green-500/20 p-5"><div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm"><span className="text-muted">Available to bank now:</span> <strong className="text-amber-500">{expectedNow.toLocaleString()} UGX</strong></div>{canEnter && <form onSubmit={addBanking} className="space-y-3"><div className="flex flex-col gap-3 md:flex-row"><input type="date" min={PRODUCTION_START_DAY} max={todayStr} value={bankDate} onChange={(e) => setBankDate(e.target.value)} className="input-base md:w-44" /><input type="number" step="0.01" value={bankAmount} onChange={(e) => setBankAmount(e.target.value)} required className="input-base flex-1" placeholder="Amount banked" /><input value={bankMethod} onChange={(e) => setBankMethod(e.target.value)} className="input-base flex-1" placeholder="Bank / MoMo / Cash box" /></div><input value={bankNotes} onChange={(e) => setBankNotes(e.target.value)} className="input-base" placeholder="Notes (optional)" />{bankVariance !== null && <div className={`rounded-xl p-3 text-sm font-bold ${Math.abs(bankVariance) < TOLERANCE ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{Math.abs(bankVariance) < TOLERANCE ? 'Matches cash on hand exactly.' : `Difference ${bankVariance.toLocaleString()} UGX — this will be flagged.`}</div>}<button type="submit" className={`w-full rounded-xl py-3 font-black ${willFlag ? 'bg-red-500 text-white' : 'bg-amber-500 text-slate-950'}`}>{willFlag ? 'Submit flagged banking' : 'Submit banking'}</button></form>}
         <div className="mt-4 space-y-2">{dayBankings.length === 0 && <p className="py-3 text-center text-sm text-muted">No bankings on this day.</p>}{dayBankings.map(b => <div key={b.id} className={`rounded-xl border p-3 ${b.flagged ? 'border-red-500/40 bg-red-500/5' : 'border-[var(--line)] bg-[var(--panel-2)]'}`}><div className="flex items-center justify-between gap-3"><strong>{Number(b.amount_banked).toLocaleString()} UGX</strong><span className={b.status === 'confirmed' ? 'text-green-500' : 'text-amber-500'}>{b.status}</span></div><p className="mt-1 text-xs text-muted">{b.bank_or_method || 'No method'} · {userMap[b.recorded_by]?.full_name || 'staff'}</p>{isAdmin && b.status === 'pending' && <button onClick={() => confirmBanking(b)} className="mt-2 rounded-lg bg-green-500 px-3 py-1.5 text-xs font-black text-slate-950">Confirm</button>}</div>)}</div></div></section>
 
-      <section className="max-w-3xl"><h2 className="mb-1 text-lg font-black">Day-by-day archive</h2><p className="mb-3 text-xs text-muted">Complete cash history from Maya's production go-live date. Days without transactions are included from that point onward so carried-forward cash remains traceable.</p><div className="space-y-2">{archiveDays.map(day => { const sum = daySummary(day); return <button key={day} onClick={() => { setSelectedDay(day); setBankDate(day) }} className={`page-card w-full p-4 text-left ${day === selectedDay ? 'border-amber-500/40' : ''}`}><div className="flex items-center justify-between gap-3"><div><p className="font-black">{day === todayStr ? 'TODAY — ' : ''}{day}</p><p className="mt-1 text-xs text-muted">Opening {sum.open.toLocaleString()} · Received {sum.cIn.toLocaleString()} · Expenses {sum.eT.toLocaleString()} · Banked {sum.bT.toLocaleString()}</p></div><div className="text-right"><p className="text-xs text-muted">Closing cash</p><p className="font-black text-amber-500">{sum.closing.toLocaleString()}</p>{sum.flags > 0 && <p className="text-xs text-red-500">{sum.flags} flag(s)</p>}</div></div></button> })}</div></section>
+      <section className="max-w-3xl"><h2 className="mb-1 text-lg font-black">Day-by-day archive</h2><p className="mb-3 text-xs text-muted">Complete cash history from Maya's production go-live date. Days without transactions are included from that point onward so carried-forward cash remains traceable. Only confirmed banking is deducted from closing cash.</p><div className="space-y-2">{archiveDays.map(day => { const sum = daySummary(day); return <button key={day} onClick={() => { setSelectedDay(day); setBankDate(day) }} className={`page-card w-full p-4 text-left ${day === selectedDay ? 'border-amber-500/40' : ''}`}><div className="flex items-center justify-between gap-3"><div><p className="font-black">{day === todayStr ? 'TODAY — ' : ''}{day}</p><p className="mt-1 text-xs text-muted">Opening {sum.open.toLocaleString()} · Received {sum.cIn.toLocaleString()} · Expenses {sum.eT.toLocaleString()} · Banked {sum.bT.toLocaleString()}</p></div><div className="text-right"><p className="text-xs text-muted">Closing cash</p><p className="font-black text-amber-500">{sum.closing.toLocaleString()}</p>{sum.flags > 0 && <p className="text-xs text-red-500">{sum.flags} flag(s)</p>}</div></div></button> })}</div></section>
     </main>
   )
 }
