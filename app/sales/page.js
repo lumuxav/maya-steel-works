@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { SYSTEM_BRANCH, isSystemBranch, getSystemUserIds } from '../../lib/branch'
@@ -73,17 +73,26 @@ export default function SalesPage() {
     load()
   }, [])
 
+  const requestRef = useRef(null)
+  const runTransaction = async (operation, data) => {
+    if (!requestRef.current) requestRef.current = crypto.randomUUID()
+    const { error } = await supabase.rpc('maya_ledger', {
+      p_operation: operation, p_data: data, p_request_id: requestRef.current,
+    })
+    if (!error) requestRef.current = null
+    return error?.message || null
+  }
+
   const finishSale = async (itemType, item, quantity, unitPrice, label) => {
-    const { data: { session } } = await supabase.auth.getSession()
     const totalAmt = quantity * unitPrice
     const paid = status === 'paid' ? totalAmt : status === 'credit' ? 0 : Number(paidAmount)
     if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(unitPrice) || unitPrice <= 0) return 'Quantity and unit price must be positive.'
     if (status === 'partial' && (!Number.isFinite(paid) || paid <= 0 || paid >= totalAmt)) return 'Partial payment must be greater than 0 and less than the sale total.'
-    const { data: createdSale, error: sErr } = await supabase.from('sales').insert({ item_type: itemType, item_id: item.id, quantity, unit_price: unitPrice, selling_price: unitPrice, total_amount: totalAmt, amount_paid: paid, payment_status: status, customer_name: customer || 'Walk-in', sold_by: session.user.id, item_label: label }).select('id').single()
-    if (sErr) return sErr.message
-    const { error: dErr } = await supabase.rpc('deduct_stock', { p_item_type: itemType, p_item_id: item.id, p_quantity: quantity, p_movement_type: 'sold', p_notes: `Maya Branch sale to ${customer || 'Walk-in'} (${status})` })
-    if (dErr) { if (createdSale?.id) await supabase.from('sales').delete().eq('id', createdSale.id); return dErr.message }
-    return null
+    return runTransaction('sale', {
+      item_type: itemType, item_id: item.id, quantity, unit_price: unitPrice,
+      payment_status: status, amount_paid: paid, customer_name: customer || 'Walk-in',
+      item_label: label
+    })
   }
 
   const handleSubmit = async (e) => {
@@ -94,21 +103,18 @@ export default function SalesPage() {
       const u = Number(units), q = Number(qty), p = Number(price)
       if (![u,q,p].every(Number.isFinite) || u <= 0 || q <= 0 || p <= 0) { setMessage({ type: 'error', text: 'Raw units, quantity and price must be positive.' }); setSaving(false); return }
       if (u > batch.quantity) { setMessage({ type: 'error', text: `Only ${batch.quantity} available at Maya Branch.` }); setSaving(false); return }
-      let fg = finished.find(x => x.name?.toLowerCase() === recipe.finished_name?.toLowerCase()) || null
-      if (!fg) {
-        const { data: created, error: fgErr } = await supabase.from('finished_goods').insert({ name: recipe.finished_name, gauge: recipe.raw_gauge, size_dimensions: recipe.finished_size, unit: 'pieces', quantity: 0, selling_price: p, current_branch: SYSTEM_BRANCH }).select().single()
-        if (fgErr) { setMessage({ type: 'error', text: fgErr.message }); setSaving(false); return }
-        fg = created
+      const label = `${recipe.finished_name} ${recipe.raw_gauge || ''} ${recipe.finished_size || ''}`.trim()
+      const paid = status === 'paid' ? q*p : status === 'credit' ? 0 : Number(paidAmount)
+      if (status === 'partial' && (!Number.isFinite(paid) || paid<=0 || paid>=q*p)) {
+        setMessage({ type: 'error', text: 'Partial payment must be between zero and total.' })
+        setSaving(false)
+        return
       }
-      const expected = Number(recipe.yield_per_raw_unit) * u
-      const { error: logErr } = await supabase.from('production_log').insert({ finished_good_id: fg.id, boss_expected_yield: expected, actual_yield: q, raw_material_id: batch.id, fraction_of_material_used: u / batch.quantity, raw_units_used: u, scrap_generated: 0, employee_name: profile?.full_name })
-      if (logErr) { setMessage({ type: 'error', text: logErr.message }); setSaving(false); return }
-      const { error: d1 } = await supabase.rpc('deduct_stock', { p_item_type: 'raw', p_item_id: batch.id, p_quantity: u, p_movement_type: 'used_in_production', p_notes: 'Maya Branch Make & Sell' })
-      if (d1) { setMessage({ type: 'error', text: d1.message }); setSaving(false); return }
-      const { error: a1 } = await supabase.rpc('add_stock', { p_item_type: 'finished', p_item_id: fg.id, p_quantity: q, p_movement_type: 'produced', p_notes: 'Maya Branch Make & Sell' })
-      if (a1) { setMessage({ type: 'error', text: a1.message }); setSaving(false); return }
-      const label = `${fg.name} ${fg.gauge || ''} ${fg.size_dimensions || ''}`.trim()
-      const err = await finishSale('finished', fg, q, p, label)
+      const err = await runTransaction('make_sale', {
+        recipe_id: recipe.id, raw_id: batch.id, raw_units: u, quantity: q,
+        unit_price: p, payment_status: status, amount_paid: paid,
+        customer_name: customer || 'Walk-in'
+      })
       if (err) { setMessage({ type: 'error', text: err }); setSaving(false); return }
       setMessage({ type: 'success', text: `Made and sold ${q} × ${label}.` })
     } else {
