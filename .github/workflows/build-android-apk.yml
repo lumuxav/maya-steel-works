@@ -1,6 +1,16 @@
 name: Build Android APK
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'android-native/**'
+      - 'app/components/NativeBackNavigation.js'
+      - 'app/records/page.js'
+      - 'app/mobile-native.css'
+      - 'capacitor.config.json'
+      - '.github/workflows/build-android-apk.yml'
   workflow_dispatch:
   push:
     branches:
@@ -8,6 +18,7 @@ on:
     paths:
       - 'capacitor.config.json'
       - 'app/components/NativeBackNavigation.js'
+      - 'android-native/**'
       - 'app/layout.js'
       - 'mobile-shell/**'
       - 'assets/logo.svg'
@@ -63,6 +74,12 @@ jobs:
       - name: Sync Capacitor Android project
         run: npx cap sync android
 
+      - name: Install Maya native Android Back navigation
+        run: |
+          mkdir -p android/app/src/main/java/com/mayasteelworks/management
+          cp android-native/MainActivity.java android/app/src/main/java/com/mayasteelworks/management/MainActivity.java
+          grep -q "handleMayaBack" android/app/src/main/java/com/mayasteelworks/management/MainActivity.java
+
       - name: Build directly installable debug APK
         run: |
           chmod +x android/gradlew
@@ -81,6 +98,7 @@ jobs:
           retention-days: 30
 
       - name: Publish stable download release
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: maya-latest
