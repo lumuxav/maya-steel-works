@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   MAYA_LAUNCH_DAY, MAYA_TIME_ZONE, mayaBusinessDay, addBusinessDays,
   businessArchiveDays, amount, saleCashAtTransaction, outstandingBalance,
-  receivedOnDay, closingCash, openingCashForDay
+  receivedOnDay, closingCash, openingCashForDay, customerServiceSalePayload
 } from '../lib/mayaBusiness.mjs'
 
 const sale = (overrides = {}) => ({
@@ -76,3 +76,22 @@ test('banking before launch does not reduce cash', () => {
 test('next-day repayment adds to the following opening', () => {
   assert.equal(openingCashForDay([sale()], [event()], [], [], '2026-10-14'), 400)
 })
+
+const sampleService = { service:'Ribbed / Pressed Plate', details:'1.2 mm', quantity:3, rate:10000, status:'paid', customer:'Test Buyer', soldBy:'test-staff-id' }
+test('service sale requires no Maya stock anchor', () => assert.equal(customerServiceSalePayload(sampleService).item_id, 0))
+test('service sale records customer-owned material without inventory type', () => assert.equal(customerServiceSalePayload(sampleService).item_type, 'service'))
+test('three customer plates at 10,000 give 30,000 UGX', () => assert.equal(customerServiceSalePayload(sampleService).total_amount, 30000))
+test('paid customer work captures full amount', () => assert.equal(customerServiceSalePayload(sampleService).amount_paid, 30000))
+test('credit customer work receives zero at transaction', () => assert.equal(customerServiceSalePayload({...sampleService,status:'credit'}).amount_paid, 0))
+test('partial customer work captures exact initial payment', () => assert.equal(customerServiceSalePayload({...sampleService,status:'partial',paidAmount:10000}).amount_paid, 10000))
+test('service sale label identifies customer material', () => assert.match(customerServiceSalePayload(sampleService).item_label, /Customer Material - Ribbed/))
+test('service sale cannot accidentally request stock deduction', () => assert.ok(!('stock_id' in customerServiceSalePayload(sampleService))))
+test('reject zero customer service units', () => assert.throws(() => customerServiceSalePayload({...sampleService,quantity:0}), RangeError))
+test('reject negative customer service units', () => assert.throws(() => customerServiceSalePayload({...sampleService,quantity:-1}), RangeError))
+test('reject fractional customer service plates', () => assert.throws(() => customerServiceSalePayload({...sampleService,quantity:1.3}), RangeError))
+test('reject zero customer service rate', () => assert.throws(() => customerServiceSalePayload({...sampleService,rate:0}), RangeError))
+test('reject negative customer service rate', () => assert.throws(() => customerServiceSalePayload({...sampleService,rate:-100}), RangeError))
+test('reject overpayment labeled partial', () => assert.throws(() => customerServiceSalePayload({...sampleService,status:'partial',paidAmount:30000}), RangeError))
+test('reject negative partial service payment', () => assert.throws(() => customerServiceSalePayload({...sampleService,status:'partial',paidAmount:-10}), RangeError))
+test('reject invalid service payment statuses', () => assert.throws(() => customerServiceSalePayload({...sampleService,status:'unknown'}), RangeError))
+test('reject missing service staff ID', () => assert.throws(() => customerServiceSalePayload({...sampleService,soldBy:null}), RangeError))
