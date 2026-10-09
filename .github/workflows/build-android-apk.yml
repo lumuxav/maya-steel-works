@@ -101,8 +101,15 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: maya-latest
-          name: Maya Steel Works — Latest Android
-          body: Latest direct-install Android APK built automatically from the main branch.
+          tag_name: maya-android-build-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Maya Steel Works — Android Build #${{ github.run_number }}
+          body: |
+            Latest official Android build of Maya Steel Works from the main branch.
+            Includes the native Back-navigation fix, double-Back exit safeguard,
+            and improved mobile Records & Discrepancies layout.
+            Download Maya-Steel-Works.apk below and install it on Android.
+            If Android reports a signing conflict with an older debug APK,
+            uninstall the old APK before installing this version.
           files: Maya-Steel-Works.apk
           make_latest: true
