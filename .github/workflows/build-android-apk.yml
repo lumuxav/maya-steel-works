@@ -1,6 +1,16 @@
 name: Build Android APK
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'android-native/**'
+      - 'app/components/NativeBackNavigation.js'
+      - 'app/records/page.js'
+      - 'app/mobile-native.css'
+      - 'capacitor.config.json'
+      - '.github/workflows/build-android-apk.yml'
   workflow_dispatch:
   push:
     branches:
@@ -88,6 +98,7 @@ jobs:
           retention-days: 30
 
       - name: Publish stable download release
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: maya-latest
