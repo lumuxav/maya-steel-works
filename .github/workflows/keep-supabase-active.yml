@@ -35,7 +35,7 @@ jobs:
           HEALTHCHECK_SECRET: ${{ secrets.MAYA_HEALTHCHECK_SECRET }}
         run: |
           set -euo pipefail
-          RESPONSE="$(curl --fail --silent --show-error --location \
+          RESPONSE="$(curl --fail --silent --show-error \
             --connect-timeout 15 --max-time 45 \
             --retry 3 --retry-delay 10 --retry-all-errors \
             -H "Authorization: Bearer $HEALTHCHECK_SECRET" \
