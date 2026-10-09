@@ -30,14 +30,14 @@ CI workflow `.github/workflows/maya-prelaunch-validation.yml` runs on PRs/main:
 3. Focused lint of pure financial/security helpers.
 4. Production Next.js build with **nonworking placeholder** Supabase values (never production service keys).
 5. HTTP smoke tests on a local Next.js server (important routes return HTML; anonymous API requests denied).
-6. A free PostgreSQL 16 test service initialized with **synthetic staff/materials** and the schema/migrations.
+6. An isolated PostgreSQL 16 instance already installed on GitHub's Ubuntu runner, initialized with **synthetic staff/materials** and the schema/migrations (no Docker image pull).
 7. SQL rollback, idempotency, stock, debt, role, correction and banking-confirmation security tests.
 
 The most recent previously observed run passed 67 unit tests, 20 HTTP smoke checks and the isolated database suite. These numbers describe a **prior run** and must be rechecked in GitHub for later commits. Check current statuses: https://github.com/lumuxav/maya-steel-works/actions/workflows/maya-prelaunch-validation.yml
 
 ### Test fixtures
 
-`tests/postgres/maya_fixture.sql` and `tests/postgres/maya_premigration_policies.sql` create fake staff, sales/stock fixtures, policies and data. The test database is isolated in a CI runner; it is not the Maya production Supabase project.
+`tests/postgres/maya_fixture.sql` and `tests/postgres/maya_premigration_policies.sql` create fake staff, sales/stock fixtures, policies and data. The test database runs in the GitHub-hosted runner's local PostgreSQL 16 service; it is not the Maya production Supabase project. The job deliberately avoids external Docker Hub pulls and their rate limits.
 
 **Never** change the CI workflow to point destructive test SQL at the production Supabase URL. Never store or print production access tokens in CI logs.
 
