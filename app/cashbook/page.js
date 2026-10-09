@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase'
 import { SYSTEM_BRANCH, getSystemUserIds } from '../../lib/branch'
 
 const TOLERANCE = 1
-const PRODUCTION_START_DAY = '2026-09-27'
+const PRODUCTION_START_DAY = '2026-10-10'
 const toDayStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 export default function CashbookPage() {
@@ -14,7 +14,7 @@ export default function CashbookPage() {
   const [profile, setProfile] = useState(null)
   const [userId, setUserId] = useState(null)
   const [entryMode, setEntryMode] = useState(false)
-  const [selectedDay, setSelectedDay] = useState(todayStr)
+  const [selectedDay, setSelectedDay] = useState(todayStr < PRODUCTION_START_DAY ? PRODUCTION_START_DAY : todayStr)
   const systemStartDay = PRODUCTION_START_DAY
   const [sales, setSales] = useState([])
   const [expenses, setExpenses] = useState([])
@@ -26,7 +26,7 @@ export default function CashbookPage() {
   const [expCat, setExpCat] = useState('Other')
   const [expAmount, setExpAmount] = useState('')
   const [newCat, setNewCat] = useState('')
-  const [bankDate, setBankDate] = useState(todayStr)
+  const [bankDate, setBankDate] = useState(todayStr < PRODUCTION_START_DAY ? PRODUCTION_START_DAY : todayStr)
   const [bankAmount, setBankAmount] = useState('')
   const [bankMethod, setBankMethod] = useState('')
   const [bankNotes, setBankNotes] = useState('')
@@ -180,6 +180,26 @@ export default function CashbookPage() {
   }
 
   if (!profile || loading) return <main className="page-wrap text-muted">Loading cash book...</main>
+
+  if (todayStr < PRODUCTION_START_DAY) {
+    return (
+      <main className="page-wrap">
+        <div className="page-header-row">
+          <div>
+            <p className="page-eyebrow">{SYSTEM_BRANCH}</p>
+            <h1 className="page-title">Cash Book & Banking</h1>
+            <p className="page-subtitle">A clean financial history for Maya Steel Works.</p>
+          </div>
+          <Link href="/" className="btn-secondary rounded-xl px-3 py-2 text-sm font-bold">Back</Link>
+        </div>
+        <section className="page-card max-w-3xl p-7 sm:p-9">
+          <p className="page-eyebrow">Fresh start</p>
+          <h2 className="text-2xl font-black">Cash Book opens 10 October 2026</h2>
+          <p className="mt-3 text-sm text-muted">The business archive begins on the first operating day. No empty September or earlier October dates will appear. Sales, expenses, banking and carried-forward cash will be tracked from the launch date.</p>
+        </section>
+      </main>
+    )
+  }
 
   return (
     <main className="page-wrap">
