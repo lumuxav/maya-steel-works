@@ -42,6 +42,13 @@ export default function CashbookPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return (window.location.href = '/login')
       setUserId(session.user.id)
+      if (todayStr < PRODUCTION_START_DAY) {
+        const { data: prelaunchProfile, error: profileError } = await supabase.from('users')
+          .select('full_name, role, branch').eq('id', session.user.id).single()
+        if (profileError) throw profileError
+        setProfile(prelaunchProfile)
+        return
+      }
 
       const [profileRes, systemUsers, usersRes, salesRes, expensesRes, bankingsRes, eventsRes, categoriesRes] = await Promise.all([
         supabase.from('users').select('full_name, role, branch').eq('id', session.user.id).single(),
