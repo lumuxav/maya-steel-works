@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { SYSTEM_BRANCH, getSystemUserIds } from '../../lib/branch'
@@ -27,6 +27,7 @@ export default function CustomerWorkPage() {
   const [paidAmount, setPaidAmount] = useState('')
   const [todayJobs, setTodayJobs] = useState([])
   const [saving, setSaving] = useState(false)
+  const requestRef = useRef(null)
   const [message, setMessage] = useState(null)
 
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin'
@@ -64,9 +65,20 @@ export default function CustomerWorkPage() {
       service, details, quantity: qty, rate: price, status, paidAmount: paidNow,
       customer, soldBy: session.user.id,
     })
-    const { error } = await supabase.from('sales').insert(serviceRow)
+    const payload = {
+      item_type: 'service', quantity: serviceRow.quantity, unit_price: serviceRow.unit_price,
+      payment_status: serviceRow.payment_status, amount_paid: serviceRow.amount_paid,
+      customer_name: serviceRow.customer_name, item_label: serviceRow.item_label,
+    }
+    const signature = JSON.stringify(payload)
+    if (!requestRef.current || requestRef.current.signature !== signature) requestRef.current = { id: crypto.randomUUID(), signature }
+    const { error } = await supabase.rpc('maya_ledger', {
+      p_operation: 'sale', p_data: payload,
+      p_request_id: requestRef.current.id,
+    })
     if (error) { setMessage({ type: 'error', text: error.message }); setSaving(false); return }
 
+    requestRef.current = null
     setMessage({ type: 'success', text: `Recorded ${qty} plate/piece${qty === 1 ? '' : 's'} at ${price.toLocaleString()} UGX each. Maya stock was not deducted.` })
     setQuantity(''); setRate(''); setCustomer(''); setDetails(''); setPaidAmount(''); setStatus('paid')
     loadToday(session, isAdmin); setSaving(false)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { SYSTEM_BRANCH, getSystemUserIds } from '../../lib/branch'
 
@@ -24,6 +24,7 @@ export default function SalesReportPage() {
   const [compNotes, setCompNotes] = useState('')
   const [message, setMessage] = useState(null)
   const [loading, setLoading] = useState(true)
+  const operationRef = useRef(null)
 
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin'
   const balance = (s) => Number(s.total_amount) - Number(s.amount_paid) - (Number(s.adjustments) || 0)
@@ -85,27 +86,70 @@ export default function SalesReportPage() {
   const customerEvents = selectedCustomer ? events.filter(e => e.customer_name === selectedCustomer) : []
   const customerOwed = customerSales.reduce((sum, s) => sum + Math.max(0, balance(s)), 0)
 
+  const ledgerAction = async (operation, payload) => {
+    const signature = JSON.stringify([operation, payload])
+    if (!operationRef.current || operationRef.current.signature !== signature) operationRef.current = { id: crypto.randomUUID(), signature }
+    const { data, error } = await supabase.rpc('maya_ledger', {
+      p_operation: operation,
+      p_data: payload,
+      p_request_id: operationRef.current.id,
+    })
+    if (error) {
+      setMessage({ type: 'error', text: error.message })
+      return null
+    }
+    operationRef.current = null
+    return data
+  }
+
   const recordPayment = async (e) => {
-    e.preventDefault(); let remaining = Number(payAmount); if (!remaining || remaining <= 0) return
-    const open = customerSales.filter(s => balance(s) > 0.009).sort((a,b) => a.created_at.localeCompare(b.created_at))
-    for (const s of open) { if (remaining <= 0) break; const apply = Math.min(balance(s), remaining); await supabase.from('sales').update({ amount_paid: Number(s.amount_paid) + apply }).eq('id', s.id); await supabase.from('debt_events').insert({ sale_id: s.id, customer_name: selectedCustomer, event_type: 'payment', amount: apply, received_by: userId, notes: payNotes || null }); remaining -= apply }
-    if (remaining > 0) await supabase.from('debt_events').insert({ sale_id: null, customer_name: selectedCustomer, event_type: 'payment', amount: remaining, received_by: userId, notes: (payNotes || '') + ' (overpayment/advance)' })
-    setMessage({ type: 'success', text: `Payment of ${Number(payAmount).toLocaleString()} UGX recorded.` }); setPayAmount(''); setPayNotes(''); load()
+    e.preventDefault()
+    const payment = Number(payAmount)
+    if (!Number.isFinite(payment) || payment <= 0 || !selectedCustomer) {
+      setMessage({ type: 'error', text: 'Choose a customer and enter a positive payment.' })
+      return
+    }
+    const result = await ledgerAction('payment', {
+      customer_name: selectedCustomer, amount: payment, notes: payNotes,
+    })
+    if (!result) return
+    setMessage({ type: 'success', text: `Payment of ${payment.toLocaleString()} UGX recorded.` })
+    setPayAmount('')
+    setPayNotes('')
+    load()
   }
 
   const recordReturn = async (e) => {
-    e.preventDefault(); const sale = customerSales.find(s => s.id === Number(retSaleId)); if (!sale) return
-    const value = Math.min(Number(retQty) * Number(sale.unit_price), balance(sale))
-    await supabase.from('sales').update({ adjustments: (Number(sale.adjustments) || 0) + value }).eq('id', sale.id)
-    await supabase.from('debt_events').insert({ sale_id: sale.id, customer_name: selectedCustomer, event_type: 'return', amount: value, item_label: sale.item_label, quantity: Number(retQty), received_by: userId, notes: retNotes || null })
-    setMessage({ type: 'success', text: `Return adjustment of ${value.toLocaleString()} UGX recorded.` }); setRetSaleId(''); setRetQty(''); setRetNotes(''); load()
+    e.preventDefault()
+    if (!isAdmin) return setMessage({ type: 'error', text: 'Only Maya Admin can adjust debt.' })
+    const qty = Number(retQty)
+    if (!retSaleId || !Number.isFinite(qty) || qty <= 0) return setMessage({ type: 'error', text: 'Select the sale and a positive return quantity.' })
+    const result = await ledgerAction('adjustment', {
+      event_type: 'return', customer_name: selectedCustomer,
+      sale_id: Number(retSaleId), quantity: qty, notes: retNotes,
+    })
+    if (!result) return
+    setMessage({ type: 'success', text: `Return adjustment of ${Number(result.amount).toLocaleString()} UGX recorded.` })
+    setRetSaleId('')
+    setRetQty('')
+    setRetNotes('')
+    load()
   }
 
   const recordCompensation = async (e) => {
-    e.preventDefault(); const open = customerSales.filter(s => balance(s) > 0.009).sort((a,b) => a.created_at.localeCompare(b.created_at)); const target = open[0] || null
-    if (target) await supabase.from('sales').update({ adjustments: (Number(target.adjustments) || 0) + Number(compAmount) }).eq('id', target.id)
-    await supabase.from('debt_events').insert({ sale_id: target ? target.id : null, customer_name: selectedCustomer, event_type: 'compensation', amount: Number(compAmount), received_by: userId, notes: compNotes || null })
-    setMessage({ type: 'success', text: `Compensation of ${Number(compAmount).toLocaleString()} UGX recorded.` }); setCompAmount(''); setCompNotes(''); load()
+    e.preventDefault()
+    if (!isAdmin) return setMessage({ type: 'error', text: 'Only Maya Admin can adjust debt.' })
+    const value = Number(compAmount)
+    if (!Number.isFinite(value) || value<=0) return setMessage({ type: 'error', text: 'Enter a positive compensation.' })
+    const result = await ledgerAction('adjustment', {
+      event_type: 'compensation', customer_name: selectedCustomer,
+      amount: value, notes: compNotes,
+    })
+    if (!result) return
+    setMessage({ type: 'success', text: `Compensation of ${Number(result.amount).toLocaleString()} UGX recorded.` })
+    setCompAmount('')
+    setCompNotes('')
+    load()
   }
 
   if (!profile || loading) return <main className="page-wrap text-muted">Loading sales report...</main>
@@ -122,8 +166,8 @@ export default function SalesReportPage() {
 
     {tab === 'debtors' && selectedCustomer && <div className="max-w-3xl space-y-5"><button onClick={() => setSelectedCustomer(null)} className="text-sm font-bold text-amber-500">← All debtors</button><div className="page-card p-5"><div className="flex items-center justify-between"><div><h2 className="text-xl font-black">{selectedCustomer}</h2><p className="text-sm text-muted">Maya Branch account</p></div><p className="text-2xl font-black text-red-500">{customerOwed.toLocaleString()} UGX</p></div></div>
       <form onSubmit={recordPayment} className="page-card space-y-3 p-5"><h3 className="font-black">Record payment</h3><input type="number" step="0.01" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} required className="input-base" placeholder="Amount received" /><input value={payNotes} onChange={(e) => setPayNotes(e.target.value)} className="input-base" placeholder="Notes" /><button className="w-full rounded-xl bg-green-500 py-3 font-black text-slate-950">Apply to oldest debt</button></form>
-      <form onSubmit={recordReturn} className="page-card space-y-3 p-5"><h3 className="font-black">Return / credit adjustment</h3><select value={retSaleId} onChange={(e) => setRetSaleId(e.target.value)} required className="input-base"><option value="">Choose sale</option>{customerSales.filter(s => balance(s) > 0.009).map(s => <option key={s.id} value={s.id}>{s.item_label} · owes {balance(s).toLocaleString()}</option>)}</select><input type="number" step="0.001" value={retQty} onChange={(e) => setRetQty(e.target.value)} required className="input-base" placeholder="Quantity returned" /><input value={retNotes} onChange={(e) => setRetNotes(e.target.value)} className="input-base" placeholder="Notes" /><button className="w-full rounded-xl bg-amber-500 py-3 font-black text-slate-950">Record return</button></form>
-      <form onSubmit={recordCompensation} className="page-card space-y-3 p-5"><h3 className="font-black">Compensation / discount</h3><input type="number" step="0.01" value={compAmount} onChange={(e) => setCompAmount(e.target.value)} required className="input-base" placeholder="Amount" /><input value={compNotes} onChange={(e) => setCompNotes(e.target.value)} className="input-base" placeholder="Reason" /><button className="w-full rounded-xl bg-amber-500 py-3 font-black text-slate-950">Apply compensation</button></form>
+      {isAdmin && <form onSubmit={recordReturn} className="page-card space-y-3 p-5"><h3 className="font-black">Return / credit adjustment</h3><select value={retSaleId} onChange={(e) => setRetSaleId(e.target.value)} required className="input-base"><option value="">Choose sale</option>{customerSales.filter(s => balance(s) > 0.009).map(s => <option key={s.id} value={s.id}>{s.item_label} · owes {balance(s).toLocaleString()}</option>)}</select><input type="number" step="0.001" value={retQty} onChange={(e) => setRetQty(e.target.value)} required className="input-base" placeholder="Quantity returned" /><input value={retNotes} onChange={(e) => setRetNotes(e.target.value)} className="input-base" placeholder="Notes" /><button className="w-full rounded-xl bg-amber-500 py-3 font-black text-slate-950">Record return</button></form>}
+      {isAdmin && <form onSubmit={recordCompensation} className="page-card space-y-3 p-5"><h3 className="font-black">Compensation / discount</h3><input type="number" step="0.01" value={compAmount} onChange={(e) => setCompAmount(e.target.value)} required className="input-base" placeholder="Amount" /><input value={compNotes} onChange={(e) => setCompNotes(e.target.value)} className="input-base" placeholder="Reason" /><button className="w-full rounded-xl bg-amber-500 py-3 font-black text-slate-950">Apply compensation</button></form>}
       <div className="page-card p-5"><h3 className="font-black">Account activity</h3><div className="mt-3 space-y-2">{customerEvents.length === 0 && <p className="text-sm text-muted">No payment events yet.</p>}{customerEvents.map(e => <div key={e.id} className="rounded-xl bg-[var(--panel-2)] p-3"><p className="font-bold capitalize">{e.event_type} · {Number(e.amount).toLocaleString()} UGX</p><p className="mt-1 text-xs text-muted">{new Date(e.created_at).toLocaleString()} {e.notes ? `· ${e.notes}` : ''}</p></div>)}</div></div>
     </div>}
   </main>
