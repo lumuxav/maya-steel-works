@@ -37,6 +37,7 @@ GitHub releases use **versioned tags** such as `maya-android-build-17`; the `rel
 | --- | --- |
 | **[Architecture & Data Model](docs/ARCHITECTURE_AND_DATA_MODEL.md)** | Technology, pages, data tables, relationships and 12 accounting invariants |
 | **[Daily Operations Manual](docs/DAILY_OPERATIONS_MANUAL.md)** | Step-by-step Employee, Business Admin and Super Admin business workflows |
+| **[Encrypted Backup & Recovery](docs/BACKUP_AND_RECOVERY.md)** | Secure key setup, encrypted exports, off-site retention, verification and restore process |
 | **[Security, Deployment & Monitoring](docs/SECURITY_DEPLOYMENT_MONITORING.md)** | Protected Supabase health checks, GitHub schedule, UptimeRobot, access, secrets, backups and deployment |
 | **[Testing, Release & Recovery](docs/TESTING_RELEASE_AND_RECOVERY.md)** | Free test pipeline, acceptance checklist, rollback, recovery and open operational requirements |
 | **[Downloads](DOWNLOADS.md)** | Latest Android APK, desktop web, PWA and iOS availability |
@@ -92,6 +93,14 @@ flowchart LR
 - **Web hosting:** Vercel project `maya-steel-works-eboa`.
 - **Mobile:** Capacitor 8 / Gradle builds and GitHub APK releases.
 - **CI:** free GitHub Actions tests and isolated runner-local PostgreSQL 16 integration environment; no production test writes.
+
+## Encrypted backup and recovery (opt-in)
+
+The **System Super Admin** can open **System Control → Backup & Recovery** at `/backups`. The [Maya encrypted database backup workflow](.github/workflows/maya-encrypted-backup.yml) uses PostgreSQL 17 and age public-key encryption and supports on-demand export or an opt-in daily schedule at **01:53 Uganda**.
+
+**Security first:** live backups do **not** run until you configure the Maya-only database URL secret, the age **public** recipient variable and enable the schedule after successfully verifying a manual export. Your age **private** decryption key stays offline—never in GitHub/Vercel. GitHub holds only encrypted `.age` artifacts for **3 days**, so permanently retained backups **must be downloaded elsewhere**. Supabase Storage file binaries require separate exports. The workflow has a 60 MiB size guard to limit free artifact storage consumption; GitHub Actions usage quotas still apply.
+
+**[Full setup, verification, restore and zero-cost guide](docs/BACKUP_AND_RECOVERY.md)**
 
 ## Supabase keep-alive & website monitoring
 

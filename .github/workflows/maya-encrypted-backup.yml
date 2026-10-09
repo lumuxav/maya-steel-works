@@ -1,0 +1,70 @@
+name: Maya Encrypted Database Backup
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '53 22 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: maya-private-database-backup
+  cancel-in-progress: false
+
+jobs:
+  export-encrypted-maya-database:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.MAYA_BACKUPS_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout Maya source
+        uses: actions/checkout@v4
+
+      - name: Check required backup configuration
+        env:
+          MAYA_BACKUP_DATABASE_URL: ${{ secrets.MAYA_BACKUP_DATABASE_URL }}
+          MAYA_BACKUP_AGE_RECIPIENT: ${{ vars.MAYA_BACKUP_AGE_RECIPIENT }}
+        run: |
+          set -euo pipefail
+          if [ -z "$MAYA_BACKUP_DATABASE_URL" ] || [ -z "$MAYA_BACKUP_AGE_RECIPIENT" ]; then
+            echo "::error::Database backup not enabled securely. Configure the Maya DB URL secret and age recipient. See docs/BACKUP_AND_RECOVERY.md."
+            exit 1
+          fi
+          node --input-type=module -e '
+            import {validateMayaBackupConfig} from "./lib/mayaBackup.mjs"
+            const issue=validateMayaBackupConfig(process.env.MAYA_BACKUP_DATABASE_URL,process.env.MAYA_BACKUP_AGE_RECIPIENT)
+            if(issue) {console.error("::error::"+issue); process.exit(1)}
+          '
+
+      - name: Install compatible pg_dump 17 and age encryption
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends age ca-certificates curl
+          if ! [ -x /usr/lib/postgresql/17/bin/pg_dump ]; then
+            sudo install -d -m 755 /usr/share/postgresql-common/pgdg
+            curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc |
+              sudo tee /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc >/dev/null
+            CODENAME="$(. /etc/os-release && echo "$VERSION_CODENAME")"
+            echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${CODENAME}-pgdg main" |
+              sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends postgresql-client-17
+          fi
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Export and encrypt production Maya database
+        env:
+          MAYA_BACKUP_DATABASE_URL: ${{ secrets.MAYA_BACKUP_DATABASE_URL }}
+          MAYA_BACKUP_AGE_RECIPIENT: ${{ vars.MAYA_BACKUP_AGE_RECIPIENT }}
+        run: bash scripts/create-encrypted-maya-backup.sh
+
+      - name: Upload encrypted short-lived backup only
+        uses: actions/upload-artifact@v4
+        with:
+          name: maya-db-encrypted-${{ github.run_id }}
+          path: maya-backup-output/*.age
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
