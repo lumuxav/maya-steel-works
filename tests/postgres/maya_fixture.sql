@@ -56,13 +56,30 @@ CREATE TABLE public.debt_events(
  item_label text, quantity numeric, received_by uuid REFERENCES public.users(id),
  notes text, created_at timestamptz DEFAULT now()
 );
+CREATE TABLE public.corrections_log(
+  id bigserial PRIMARY KEY,
+  table_name text NOT NULL,
+  row_id bigint NOT NULL,
+  field_name text NOT NULL,
+  old_value text,
+  new_value text,
+  reason text,
+  changed_by uuid,
+  changed_at timestamptz DEFAULT now()
+);
 CREATE TABLE public.bankings(
  id bigserial PRIMARY KEY, banking_date date NOT NULL DEFAULT CURRENT_DATE,
- amount_banked numeric NOT NULL, recorded_by uuid, status text DEFAULT 'pending'
+ amount_banked numeric NOT NULL, recorded_by uuid, status text DEFAULT 'pending',
+ bank_or_method text, confirmed_by uuid, confirmed_at timestamptz, notes text,
+ expected_amount numeric, variance numeric, flagged boolean DEFAULT false,
+ created_at timestamptz DEFAULT now()
 );
 CREATE TABLE public.expenses(
- id bigserial PRIMARY KEY, amount numeric NOT NULL, recorded_by uuid, description text NOT NULL
+ id bigserial PRIMARY KEY, amount numeric NOT NULL, recorded_by uuid,
+ description text NOT NULL, category text DEFAULT 'Other',
+ created_at timestamptz DEFAULT now()
 );
+
 
 CREATE OR REPLACE FUNCTION public.get_user_role() RETURNS text
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''

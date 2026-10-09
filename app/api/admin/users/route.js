@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { validateMayaPassword } from '../../../../lib/mayaPasswordPolicy.mjs'
 
 const SYSTEM_BRANCH = 'Maya Branch'
 const ROLES = ['employee', 'admin', 'super_admin']
@@ -99,9 +100,11 @@ export async function POST(req) {
   const requestedRole = ROLES.includes(body.role) ? body.role : 'employee'
   const restoreArchived = body.restore_archived === true
 
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !fullName || password.length < 6) {
-    return NextResponse.json({ error: 'Name, valid email and a password of at least 6 characters are required.' }, { status: 400 })
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !fullName) {
+    return NextResponse.json({ error: 'Name and a valid email are required.' }, { status: 400 })
   }
+  const passwordIssue = validateMayaPassword(password)
+  if (passwordIssue) return NextResponse.json({ error: passwordIssue }, { status: 400 })
   if (body.role !== undefined && !ROLES.includes(body.role)) {
     return NextResponse.json({ error: 'Invalid role.' }, { status: 400 })
   }
@@ -226,7 +229,8 @@ export async function PATCH(req) {
   }
 
   if (password !== undefined) {
-    if (String(password).length < 6) return NextResponse.json({ error: 'Password must be at least 6 characters.' }, { status: 400 })
+    const passwordIssue = validateMayaPassword(String(password))
+    if (passwordIssue) return NextResponse.json({ error: passwordIssue }, { status: 400 })
     const { error } = await supabase.auth.admin.updateUserById(user_id, { password })
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   }

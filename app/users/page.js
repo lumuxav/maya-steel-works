@@ -128,7 +128,7 @@ export default function UsersPage() {
   }
 
   const resetPassword = async (u) => {
-    const np = window.prompt(`Set a new password for ${u.full_name} (minimum 6 characters):`)
+    const np = window.prompt(`Set a new password for ${u.full_name} (12+ characters, upper/lowercase, number and symbol):`)
     if (!np) return
     const r = await callApi('PATCH', { user_id: u.id, password: np })
     setRowMessages(m => ({
@@ -183,7 +183,7 @@ export default function UsersPage() {
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} className="input-base" placeholder="Temporary password" />
           <select value={role} onChange={(e) => setRole(e.target.value)} className="input-base">{ROLES.map(r => <option key={r} value={r}>{prettyRole(r)}</option>)}</select>
         </div>
-        <p className="mt-3 text-xs text-muted">{restoreCandidate ? `Restoring ${restoreCandidate.full_name}: assign a NEW temporary password and review their role. Their previous Maya history remains linked.` : 'Passwords cannot be viewed later. Super Admin can only reset them.'}</p>
+        <p className="mt-3 text-xs text-muted">{restoreCandidate ? `Restoring ${restoreCandidate.full_name}: assign a NEW temporary password and review their role. Their previous Maya history remains linked.` : 'Passwords cannot be viewed later. Use at least 12 characters with uppercase, lowercase, a number and symbol.'}</p>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <button type="submit" disabled={busy} className="btn-primary rounded-xl px-4 py-3 text-sm font-black disabled:opacity-50">{busy ? 'Saving...' : restoreCandidate ? 'Restore existing account' : 'Create user'}</button>
           {restoreCandidate && <button type="button" disabled={busy} className="btn-secondary rounded-xl px-4 py-3 text-sm font-bold" onClick={() => { setRestoreCandidate(null); setPassword(''); setMessage(null) }}>Cancel restoration</button>}
