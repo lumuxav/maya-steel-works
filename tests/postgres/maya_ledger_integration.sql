@@ -186,6 +186,18 @@ BEGIN
 END;
 $$;
 
+SELECT public.maya_ledger('sale','{
+ "item_type":"service","quantity":1,"unit_price":200,"payment_status":"paid",
+ "customer_name":"AdminOnlySale","item_label":"Customer Material - Admin service"
+}', '00000000-0000-0000-0000-000000000112');
+SELECT set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',false);
+DO $
+DECLARE v_count bigint;
+BEGIN
+ SELECT count(*) INTO v_count FROM public.sales WHERE customer_name='AdminOnlySale';
+ PERFORM public.test_assert(v_count=0,'employees cannot read another staff member sales');
+END;
+$;
 SELECT set_config('request.jwt.claim.sub','33333333-3333-3333-3333-333333333333',false);
 DO $$
 DECLARE v_count bigint;
