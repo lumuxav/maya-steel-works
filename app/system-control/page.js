@@ -95,6 +95,7 @@ export default function SystemControlPage() {
             <Link href="/users" className="page-card p-4"><p className="font-black">Users & Access</p><p className="mt-1 text-sm text-muted">Create users, change roles, disable access and reset passwords.</p></Link>
             <Link href="/records" className="page-card p-4"><p className="font-black">Audit & Records</p><p className="mt-1 text-sm text-muted">Inspect corrections, discrepancies and permanent operational records.</p></Link>
             <Link href="/corrections" className="page-card p-4"><p className="font-black">Corrections</p><p className="mt-1 text-sm text-muted">Investigate and repair wrong business entries while preserving the audit trail.</p></Link>
+            <Link href="/backups" className="page-card p-4"><p className="font-black">Backup & Recovery</p><p className="mt-1 text-sm text-muted">Encrypted database exports, backup history and recovery instructions.</p></Link>
             <Link href="/settings" className="page-card p-4"><p className="font-black">System Settings</p><p className="mt-1 text-sm text-muted">Appearance and account settings. More technical settings can be added here later.</p></Link>
           </div>
         </div>
