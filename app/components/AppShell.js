@@ -154,6 +154,9 @@ export default function AppShell({ children }) {
               <Link href="/users" className={`app-nav-item ${active('/users') ? 'active' : ''}`}>
                 <Icon name="users" /><span>Users & Access</span>
               </Link>
+              <Link href="/backups" className={`app-nav-item ${active('/backups') ? 'active' : ''}`}>
+                <Icon name="system" /><span>Backup & Recovery</span>
+              </Link>
             </>
           )}
         </nav>
