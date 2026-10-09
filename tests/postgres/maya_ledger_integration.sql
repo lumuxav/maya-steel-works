@@ -145,6 +145,21 @@ BEGIN
  EXCEPTION WHEN insufficient_privilege THEN NULL;
  END;
  BEGIN
+  INSERT INTO public.raw_materials(category,quantity) VALUES('Forged Stock',500);
+  RAISE EXCEPTION 'Expected raw stock privilege denial';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+ BEGIN
+  INSERT INTO public.finished_goods(name,unit,quantity,selling_price) VALUES('Forged FG','pcs',500,1);
+  RAISE EXCEPTION 'Expected finished stock privilege denial';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+ BEGIN
+  INSERT INTO public.deliveries(supplier_name,received_by) VALUES('Spoofed','22222222-2222-2222-2222-222222222222');
+  RAISE EXCEPTION 'Expected delivery identity check';
+ EXCEPTION WHEN check_violation OR insufficient_privilege THEN NULL;
+ END;
+ BEGIN
   INSERT INTO public.debt_events(customer_name,event_type,amount)
   VALUES('Debtor','payment',999);
   RAISE EXCEPTION 'Expected direct debt-event privilege denial';
