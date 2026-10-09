@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { SYSTEM_BRANCH, isSystemBranch, getSystemRawIds, getSystemFinishedIds } from '../../lib/branch'
 
@@ -14,6 +14,7 @@ export default function ProductionPage() {
   const [produced, setProduced] = useState('')
   const [scrap, setScrap] = useState('')
   const [saving, setSaving] = useState(false)
+  const requestRef = useRef(null)
   const [message, setMessage] = useState(null)
   const [todayRuns, setTodayRuns] = useState([])
   const [fgMap, setFgMap] = useState({})
@@ -63,22 +64,17 @@ export default function ProductionPage() {
     if (![u,p].every(Number.isFinite) || u <= 0 || p <= 0 || !Number.isFinite(Number(scrap || 0)) || Number(scrap || 0) < 0) { setMessage({ type: 'error', text: 'Raw units and output must be positive, and scrap must not be negative.' }); setSaving(false); return }
     if (u > batch.quantity) { setMessage({ type: 'error', text: `Only ${batch.quantity} ${batch.unit} available at Maya Branch.` }); setSaving(false); return }
 
-    let fg = null
-    const { data: existing } = await supabase.from('finished_goods').select('*').ilike('name', recipe.finished_name)
-    fg = (existing || []).find(x => isSystemBranch(x.current_branch)) || null
-    if (!fg) {
-      const { data: created, error: fgErr } = await supabase.from('finished_goods').insert({ name: recipe.finished_name, gauge: recipe.raw_gauge, size_dimensions: recipe.finished_size, unit: 'pieces', quantity: 0, selling_price: 0, current_branch: SYSTEM_BRANCH }).select().single()
-      if (fgErr) { setMessage({ type: 'error', text: fgErr.message }); setSaving(false); return }
-      fg = created
-    }
-
-    const exp = Number(recipe.yield_per_raw_unit) * u
-    const { error: logErr } = await supabase.from('production_log').insert({ finished_good_id: fg.id, boss_expected_yield: exp, actual_yield: p, raw_material_id: batch.id, fraction_of_material_used: u / batch.quantity, raw_units_used: u, scrap_generated: Number(scrap) || 0, employee_name: profile?.full_name })
-    if (logErr) { setMessage({ type: 'error', text: logErr.message }); setSaving(false); return }
-    const { error: d1 } = await supabase.rpc('deduct_stock', { p_item_type: 'raw', p_item_id: batch.id, p_quantity: u, p_movement_type: 'used_in_production', p_notes: `Maya Branch production: ${recipe.finished_name}` })
-    if (d1) { setMessage({ type: 'error', text: d1.message }); setSaving(false); return }
-    const { error: a1 } = await supabase.rpc('add_stock', { p_item_type: 'finished', p_item_id: fg.id, p_quantity: p, p_movement_type: 'produced', p_notes: `Maya Branch production by ${profile?.full_name}` })
-    if (a1) { setMessage({ type: 'error', text: a1.message }); setSaving(false); return }
+    if (!requestRef.current) requestRef.current = crypto.randomUUID()
+    const { error } = await supabase.rpc('maya_ledger', {
+      p_operation: 'production',
+      p_data: {
+        recipe_id: recipe.id, raw_id: batch.id, raw_units: u,
+        quantity: p, scrap: Number(scrap) || 0,
+      },
+      p_request_id: requestRef.current,
+    })
+    if (error) { setMessage({ type: 'error', text: error.message }); setSaving(false); return }
+    requestRef.current = null
     setMessage({ type: 'success', text: `Production recorded: ${p} pieces of ${recipe.finished_name} at Maya Branch.` })
     setUnits(''); setProduced(''); setScrap(''); loadToday(); setSaving(false)
   }
