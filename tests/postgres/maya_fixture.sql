@@ -129,6 +129,10 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.add_stock(text,bigint,numeric,text,text) RETURNS boolean
+LANGUAGE sql AS $$ SELECT private.add_stock_internal($1,$2,$3,$4,$5) $$;
+CREATE FUNCTION public.deduct_stock(text,bigint,numeric,text,text) RETURNS boolean
+LANGUAGE sql AS $$ SELECT private.deduct_stock_internal($1,$2,$3,$4,$5) $$;
 GRANT USAGE ON SCHEMA public, auth, private TO authenticated;
 GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_user_role() TO authenticated;
