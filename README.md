@@ -37,6 +37,7 @@ GitHub releases use **versioned tags** such as `maya-android-build-17`; the `rel
 | --- | --- |
 | **[Architecture & Data Model](docs/ARCHITECTURE_AND_DATA_MODEL.md)** | Technology, pages, data tables, relationships and 12 accounting invariants |
 | **[Daily Operations Manual](docs/DAILY_OPERATIONS_MANUAL.md)** | Step-by-step Employee, Business Admin and Super Admin business workflows |
+| **[Encrypted Backup & Recovery](docs/BACKUP_AND_RECOVERY.md)** | Secure key setup, encrypted exports, off-site retention, verification and restore process |
 | **[Security, Deployment & Monitoring](docs/SECURITY_DEPLOYMENT_MONITORING.md)** | Protected Supabase health checks, GitHub schedule, UptimeRobot, access, secrets, backups and deployment |
 | **[Testing, Release & Recovery](docs/TESTING_RELEASE_AND_RECOVERY.md)** | Free test pipeline, acceptance checklist, rollback, recovery and open operational requirements |
 | **[Downloads](DOWNLOADS.md)** | Latest Android APK, desktop web, PWA and iOS availability |
