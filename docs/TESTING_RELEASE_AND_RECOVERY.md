@@ -12,6 +12,12 @@
 - Previously confirmed: four Maya staff profiles and zero operational sales/stock/production/cash rows before opening. **Counts change after staff begin operating.**
 - Operational workflow testing performed in isolated PostgreSQL must never be mistaken for full end-to-end production device certification.
 
+## Backup security tests
+
+The additional `tests/maya-backup.test.mjs` suite verifies Maya project URL isolation, SSL/session-pooler rules, age recipient formatting, opt-in scheduling, encrypted artifact-only paths and honest archive-status reporting. Isolated GitHub CI also encrypts and decrypts a **synthetic** PostgreSQL custom archive and restores it into a temporary PostgreSQL database.
+
+**This is not proof that a real Maya backup has run.** The production encryption recipient and connection secret must be configured directly by the Super Admin, then one manual export must be downloaded, decrypted and verified on an offline computer. See [Backup and Recovery](BACKUP_AND_RECOVERY.md).
+
 ## 2. Automated verification
 
 Run local logic checks:
