@@ -13,3 +13,9 @@ CREATE POLICY bank_select ON public.bankings FOR SELECT TO authenticated USING (
 DROP POLICY permissive_fixture ON public.expenses;
 CREATE POLICY exp_insert ON public.expenses FOR INSERT TO authenticated WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY exp_select ON public.expenses FOR SELECT TO authenticated USING (auth.uid() IS NOT NULL);
+
+DROP POLICY permissive_fixture ON public.deliveries;
+CREATE POLICY del_insert ON public.deliveries FOR INSERT TO authenticated
+WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY del_select ON public.deliveries FOR SELECT TO authenticated
+USING (auth.uid() IS NOT NULL);
