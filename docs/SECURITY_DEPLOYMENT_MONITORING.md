@@ -128,6 +128,10 @@ The iOS workflow validates an unsigned native simulator build; there is no verif
 
 Add the custom domain to the **same** Maya Vercel project, update DNS and Supabase Auth allowlists/redirect URLs, then update `capacitor.config.json` and rebuild Android. Update GitHub keepalive endpoint and UptimeRobot's configured target if switching the canonical website. **Do not migrate or reset Supabase data merely because the domain changes.**
 
+## Encrypted database backup workflow
+
+Maya also has an opt-in [encrypted database backup job](../.github/workflows/maya-encrypted-backup.yml). It runs **daily at 22:53 UTC** only after the Super Admin securely configures its GitHub credentials and **`MAYA_BACKUPS_ENABLED=true`**. It can be run manually first. The generated PostgreSQL archive is age-encrypted before the upload, and the GitHub artifact expires after three days. For a year-long backup, the Super Admin must download a copy off GitHub and preserve the offline decryption identity. **The job is not active by default, and database backups do not contain Storage binary objects.** See [Backup and Recovery](BACKUP_AND_RECOVERY.md).
+
 ## 4. Operational backup and recovery (zero-cost options)
 
 **Keep-alive does not equal backup.** A healthy Supabase API cannot recover an accidentally deleted table or operator mistake.
