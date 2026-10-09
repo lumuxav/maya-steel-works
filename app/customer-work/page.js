@@ -65,15 +65,16 @@ export default function CustomerWorkPage() {
       service, details, quantity: qty, rate: price, status, paidAmount: paidNow,
       customer, soldBy: session.user.id,
     })
-    if (!requestRef.current) requestRef.current = crypto.randomUUID()
+    const payload = {
+      item_type: 'service', quantity: serviceRow.quantity, unit_price: serviceRow.unit_price,
+      payment_status: serviceRow.payment_status, amount_paid: serviceRow.amount_paid,
+      customer_name: serviceRow.customer_name, item_label: serviceRow.item_label,
+    }
+    const signature = JSON.stringify(payload)
+    if (!requestRef.current || requestRef.current.signature !== signature) requestRef.current = { id: crypto.randomUUID(), signature }
     const { error } = await supabase.rpc('maya_ledger', {
-      p_operation: 'sale',
-      p_data: {
-        item_type: 'service', quantity: serviceRow.quantity, unit_price: serviceRow.unit_price,
-        payment_status: serviceRow.payment_status, amount_paid: serviceRow.amount_paid,
-        customer_name: serviceRow.customer_name, item_label: serviceRow.item_label,
-      },
-      p_request_id: requestRef.current,
+      p_operation: 'sale', p_data: payload,
+      p_request_id: requestRef.current.id,
     })
     if (error) { setMessage({ type: 'error', text: error.message }); setSaving(false); return }
 
