@@ -1,3 +1,11 @@
+## Current update — 31 October 2026 operating start
+
+Maya **0.2.0** adds **Period Report** to Home, Cash Book and management navigation. Choose any inclusive start/end dates to see sales, cash received, debt repayments, advances, expenses, confirmed/pending banking, outstanding credit at period end, estimated profit and daily totals. Download the complete report as CSV. All business dates use Uganda time.
+
+The cash archive and period report now begin **Saturday, 31 October 2026**. Earlier records are retained; no database erase or migration is part of this update. This supersedes earlier October 12 launch references in historical audit documents.
+
+See [Period Report guide](docs/MAYA_PERIOD_REPORT.md) and [downloads](DOWNLOADS.md). The production web/PWA serves desktop and iPhone; Android is released through GitHub. There are no Windows/macOS installers or signed iOS IPA releases in this repository.
+
 # Maya Steel Works Management System
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)

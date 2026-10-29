@@ -29,12 +29,16 @@ jobs:
       - name: Run Maya financial and calendar regression tests
         run: npm run test:logic
       - name: Lint Maya business rules and tests
-        run: npx eslint lib/mayaBusiness.mjs lib/mayaPasswordPolicy.mjs lib/mayaBackup.mjs tests/maya-business-logic.test.mjs tests/maya-password-policy.test.mjs tests/maya-backup.test.mjs
+        run: npx eslint lib/mayaBusiness.mjs lib/mayaPasswordPolicy.mjs lib/mayaBackup.mjs tests/maya-business-logic.test.mjs tests/maya-password-policy.test.mjs tests/maya-backup.test.mjs lib/mayaReportData.mjs lib/mayaPeriodReport.mjs lib/mayaPeriodApi.mjs tests/maya-period-report.test.mjs app/profit/page.js app/api/reports/period/route.js
       - name: Build Maya Next.js application (no live database access)
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-public-key-no-live-access
         run: npm run build
+      - name: Install isolated browser test runtime
+        run: npx playwright install --with-deps chromium
+      - name: Verify mobile and desktop period reports with synthetic data
+        run: npm run test:browser
       - name: Smoke-test Maya pages and anonymous API denial
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co

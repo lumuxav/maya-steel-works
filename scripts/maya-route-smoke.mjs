@@ -17,7 +17,7 @@ for (const pathname of pages) {
   passed += 1
 }
 
-for (const path of ['/api/admin/users', '/api/admin/system', '/api/admin/backups']) {
+for (const path of ['/api/admin/users', '/api/admin/system', '/api/admin/backups', '/api/reports/period?from=2026-10-31&to=2026-10-31']) {
   const response = await fetch(origin + path, { signal: AbortSignal.timeout(10000) })
   assert.equal(response.status, 401, `${path} did not block an anonymous caller`)
   passed += 1

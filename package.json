@@ -1,6 +1,6 @@
 {
   "name": "mgt",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:logic": "node --test tests/*.test.mjs",
-    "check:business": "npm run test:logic && npm run build"
+    "check:business": "npm run test:logic && npm run build",
+    "test:browser": "node tests/browser/period-report.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
@@ -20,6 +21,7 @@
     "@tailwindcss/postcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "playwright": "1.62.1",
     "tailwindcss": "^4"
   }
 }

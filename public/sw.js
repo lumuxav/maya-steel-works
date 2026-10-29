@@ -1,4 +1,4 @@
-const CACHE_NAME = 'maya-shell-v1';
+const CACHE_NAME = 'maya-shell-v2-20261031';
 const SHELL = ['/offline', '/icon.svg'];
 
 self.addEventListener('install', (event) => {

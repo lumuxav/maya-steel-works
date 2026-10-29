@@ -9,6 +9,7 @@ on:
       - 'app/components/NativeBackNavigation.js'
       - 'app/records/page.js'
       - 'app/mobile-native.css'
+      - 'package.json'
       - 'capacitor.config.json'
       - '.github/workflows/build-android-apk.yml'
   workflow_dispatch:
@@ -16,6 +17,7 @@ on:
     branches:
       - main
     paths:
+      - 'package.json'
       - 'capacitor.config.json'
       - 'app/components/NativeBackNavigation.js'
       - 'android-native/**'
@@ -62,8 +64,11 @@ jobs:
       - name: Install project dependencies
         run: npm ci
 
+      - name: Verify Maya financial calculations before packaging
+        run: npm run test:logic
+
       - name: Install Android packaging tools
-        run: npm install --no-save @capacitor/core@8 @capacitor/cli@8 @capacitor/android@8 @capacitor/assets@3 @capacitor/keyboard@8 @capacitor/app@8
+        run: npm install --no-save @capacitor/core@8 @capacitor/cli@8 @capacitor/android@8 @capacitor/assets@3 @capacitor/keyboard@8 @capacitor/app@8 @capacitor/filesystem@8 @capacitor/share@8
 
       - name: Create Android project
         run: npx cap add android
@@ -80,6 +85,21 @@ jobs:
           cp android-native/MainActivity.java android/app/src/main/java/com/mayasteelworks/management/MainActivity.java
           grep -q "handleMayaBack" android/app/src/main/java/com/mayasteelworks/management/MainActivity.java
 
+      - name: Set Android release version
+        env:
+          MAYA_BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          python - <<'PYCODE'
+          import json, os, pathlib, re
+          path = pathlib.Path('android/app/build.gradle')
+          text = path.read_text()
+          version = json.loads(pathlib.Path('package.json').read_text())['version']
+          text, codes = re.subn(r'versionCode [0-9]+', 'versionCode ' + str(100 + int(os.environ['MAYA_BUILD_NUMBER'])), text)
+          text, names = re.subn(r'versionName "[^"]+"', 'versionName "' + version + '"', text)
+          assert codes == 1 and names == 1, 'Android version fields were not found'
+          path.write_text(text)
+          PYCODE
+
       - name: Build directly installable debug APK
         run: |
           chmod +x android/gradlew
@@ -87,7 +107,9 @@ jobs:
           ./gradlew assembleDebug
 
       - name: Prepare APK file
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk Maya-Steel-Works.apk
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk Maya-Steel-Works.apk
+          sha256sum Maya-Steel-Works.apk > SHA256SUMS.txt
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -98,7 +120,7 @@ jobs:
           retention-days: 30
 
       - name: Publish stable download release
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: maya-android-build-${{ github.run_number }}
@@ -106,10 +128,16 @@ jobs:
           name: Maya Steel Works — Android Build #${{ github.run_number }}
           body: |
             Latest official Android build of Maya Steel Works from the main branch.
-            Includes the native Back-navigation fix, double-Back exit safeguard,
-            and improved mobile Records & Discrepancies layout.
+            Version 0.2.0: financial period reports with inclusive Uganda date ranges,
+            cash reconciliation, debt payments, estimated profit and CSV export.
+            Operating history begins Saturday, 31 October 2026.
+            The same features are live on the desktop and iPhone web/PWA app.
+            Web app: https://maya-steel-works-mgt.vercel.app
+            Existing native Back navigation and double-Back exit are retained.
             Download Maya-Steel-Works.apk below and install it on Android.
             If Android reports a signing conflict with an older debug APK,
             uninstall the old APK before installing this version.
-          files: Maya-Steel-Works.apk
+          files: |
+            Maya-Steel-Works.apk
+            SHA256SUMS.txt
           make_latest: true
