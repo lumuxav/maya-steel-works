@@ -39,6 +39,14 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Verify mobile and desktop period reports with synthetic data
         run: npm run test:browser
+      - name: Save synthetic report screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maya-period-report-screenshots
+          path: /tmp/maya-report-qa/*.png
+          if-no-files-found: ignore
+          retention-days: 3
       - name: Smoke-test Maya pages and anonymous API denial
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
