@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
-import { SYSTEM_BRANCH, getSystemUserIds } from '../../lib/branch'
-import { MAYA_LAUNCH_DAY, mayaBusinessDay, addBusinessDays, businessArchiveDays, saleCashAtTransaction, receivedOnDay, openingCashForDay as calculateOpeningCash, closingCash } from '../../lib/mayaBusiness.mjs'
+import { SYSTEM_BRANCH, isSystemBranch } from '../../lib/branch'
+import { MAYA_LAUNCH_DAY, MAYA_LAUNCH_LABEL, mayaBusinessDay, addBusinessDays, businessArchiveDays, saleCashAtTransaction, receivedOnDay, openingCashForDay as calculateOpeningCash, closingCash } from '../../lib/mayaBusiness.mjs'
+
+import { readAllRows } from '../../lib/mayaReportData.mjs'
 
 const TOLERANCE = 1
 const PRODUCTION_START_DAY = MAYA_LAUNCH_DAY
@@ -52,14 +54,14 @@ export default function CashbookPage() {
         return
       }
 
-      const [profileRes, systemUsers, usersRes, salesRes, expensesRes, bankingsRes, eventsRes, categoriesRes] = await Promise.all([
+      const read = (table, columns = '*') => readAllRows(() => supabase.from(table).select(columns, { count: 'exact' })).then(data => ({ data }))
+      const [profileRes, usersRes, salesRes, expensesRes, bankingsRes, eventsRes, categoriesRes] = await Promise.all([
         supabase.from('users').select('full_name, role, branch').eq('id', session.user.id).single(),
-        getSystemUserIds(supabase),
-        supabase.from('users').select('id, full_name, branch'),
-        supabase.from('sales').select('*').order('created_at', { ascending: false }).limit(1000),
-        supabase.from('expenses').select('*').order('created_at', { ascending: false }).limit(1000),
-        supabase.from('bankings').select('*').order('created_at', { ascending: false }).limit(1000),
-        supabase.from('debt_events').select('*').order('created_at', { ascending: false }).limit(1000),
+        read('users', 'id, full_name, branch'),
+        read('sales'),
+        read('expenses'),
+        read('bankings'),
+        read('debt_events'),
         supabase.from('expense_categories').select('*').order('name')
       ])
       const errors = [profileRes, usersRes, salesRes, expensesRes, bankingsRes, eventsRes, categoriesRes].map((res) => res.error).filter(Boolean)
@@ -68,6 +70,7 @@ export default function CashbookPage() {
       if (!prof) throw new Error('Your Maya staff profile is unavailable.')
       setProfile(prof)
 
+      const systemUsers = new Set((usersRes.data || []).filter(user => isSystemBranch(user.branch)).map(user => user.id))
       const systemProfiles = (usersRes.data || []).filter((user) => systemUsers.has(user.id))
       setUserMap(Object.fromEntries(systemProfiles.map((user) => [user.id, user])))
       const branchSales = (salesRes.data || []).filter((sale) => systemUsers.has(sale.sold_by))
@@ -202,7 +205,8 @@ export default function CashbookPage() {
     }
   }
 
-  if (!profile || loading) return <main className="page-wrap text-muted">Loading cash book...</main>
+  if (loading) return <main className="page-wrap text-muted">Loading cash book...</main>
+  if (!profile) return <main className="page-wrap"><p role="alert">{message?.text || 'Your Maya profile could not be loaded.'}</p><button className="btn-secondary mt-4 rounded-xl p-3" onClick={() => { setLoading(true); load() }}>Retry</button></main>
 
   if (todayStr < PRODUCTION_START_DAY) {
     return (
@@ -217,8 +221,9 @@ export default function CashbookPage() {
         </div>
         <section className="page-card max-w-3xl p-7 sm:p-9">
           <p className="page-eyebrow">Fresh start</p>
-          <h2 className="text-2xl font-black">Cash Book opens Monday, 12 October 2026</h2>
-          <p className="mt-3 text-sm text-muted">The business archive begins on the first operating day. No empty September or earlier October dates will appear. Sales, expenses, banking and carried-forward cash will be tracked from the launch date.</p>
+          <h2 className="text-2xl font-black">Cash Book opens {MAYA_LAUNCH_LABEL}</h2>
+          <p className="mt-3 text-sm text-muted">The business archive begins on the first operating day. Dates before 31 October will not appear. Sales, expenses, banking and carried-forward cash will be tracked from the launch date.</p>
+        {isAdmin && <Link href="/profit" className="btn-secondary mt-5 inline-block rounded-xl px-4 py-3 font-bold">View Period Report</Link>}
         </section>
       </main>
     )
@@ -228,6 +233,7 @@ export default function CashbookPage() {
     <main className="page-wrap">
       <div className="page-header-row"><div><p className="text-xs font-black uppercase tracking-[0.18em] text-amber-500">{SYSTEM_BRANCH}</p><h1 className="page-title">Cash Book & Banking</h1><p className="page-subtitle">Unbanked closing cash automatically carries into the next day.</p></div><Link href="/" className="btn-secondary rounded-xl px-3 py-2 text-sm font-bold">Back</Link></div>
 
+      {isAdmin && <Link href="/profit" className="mb-4 block max-w-3xl rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 font-bold">Period Report <span className="mt-1 block text-xs font-normal text-muted">Choose a start and end date to view sales, cash, expenses and profit estimates.</span></Link>}
       {isAdmin && <button onClick={() => setEntryMode(!entryMode)} className="mb-4 rounded-xl border border-[var(--line)] px-3 py-2 text-sm font-bold">{entryMode ? 'Hide entry forms' : 'Record expense / banking'}</button>}
       {isAdmin && flaggedPending.length > 0 && <button onClick={() => { setSelectedDay(flaggedPending[0].banking_date); setBankDate(flaggedPending[0].banking_date) }} className="mb-4 block w-full max-w-3xl rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-left text-sm font-bold text-red-500">{flaggedPending.length} flagged banking record(s) need review</button>}
       {message && <div className={`mb-4 max-w-3xl rounded-xl border p-3 text-sm ${message.type === 'success' ? 'border-green-500/30 bg-green-500/10 text-green-500' : message.type === 'warn' ? 'border-amber-500/30 bg-amber-500/10 text-amber-500' : 'border-red-500/30 bg-red-500/10 text-red-500'}`}>{message.text}</div>}
@@ -237,10 +243,10 @@ export default function CashbookPage() {
       {openingCash > 0 && <div className="mb-5 max-w-3xl rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4"><p className="text-sm font-black text-amber-500">Opening cash carried forward</p><p className="mt-1 text-2xl font-black">{openingCash.toLocaleString()} UGX</p><p className="mt-1 text-xs text-muted">Unbanked cash remaining from previous day(s).</p></div>}
 
       <div className="mb-5 grid max-w-3xl grid-cols-2 gap-4 md:grid-cols-4">
-        <div className="page-card p-4"><p className="text-xs text-muted">Cash received today</p><p className="mt-1 text-2xl font-black text-green-500">{cashIn.toLocaleString()}</p></div>
+        <div className="page-card p-4"><p className="text-xs text-muted">Cash received on this day</p><p className="mt-1 text-2xl font-black text-green-500">{cashIn.toLocaleString()}</p></div>
         <div className="page-card p-4"><p className="text-xs text-muted">Expenses</p><p className="mt-1 text-2xl font-black text-red-500">{expTotal.toLocaleString()}</p></div>
         <div className="page-card border-amber-500/30 p-4"><p className="text-xs text-muted">Cash still on hand</p><p className="mt-1 text-2xl font-black text-amber-500">{expectedNow.toLocaleString()}</p></div>
-        <div className="page-card p-4"><p className="text-xs text-muted">Banked today</p><p className="mt-1 text-2xl font-black">{(bankedConfirmed + bankedPending).toLocaleString()}</p><p className="mt-1 text-xs text-muted">Confirmed {bankedConfirmed.toLocaleString()} · Pending {bankedPending.toLocaleString()}</p></div>
+        <div className="page-card p-4"><p className="text-xs text-muted">Banked on this day</p><p className="mt-1 text-2xl font-black">{(bankedConfirmed + bankedPending).toLocaleString()}</p><p className="mt-1 text-xs text-muted">Confirmed {bankedConfirmed.toLocaleString()} · Pending {bankedPending.toLocaleString()}</p></div>
       </div>
 
       <section className="mb-8 max-w-3xl">

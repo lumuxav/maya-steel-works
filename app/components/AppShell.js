@@ -35,7 +35,8 @@ const NAV = [
 
 const MANAGEMENT = [
   { href: '/alerts', label: 'Alerts', icon: 'alert' },
-  { href: '/sales-report', label: 'Reports', icon: 'reports' },
+  { href: '/sales-report', label: 'Sales & Credit', icon: 'reports' },
+  { href: '/profit', label: 'Period Report', icon: 'reports', managementOnly: true },
   { href: '/settings', label: 'Settings', icon: 'settings' },
 ]
 
@@ -139,7 +140,7 @@ export default function AppShell({ children }) {
           ))}
 
           <p className="app-nav-label app-nav-label-spaced">Business management</p>
-          {MANAGEMENT.map((item) => (
+          {MANAGEMENT.filter(item => !item.managementOnly || ['admin', 'super_admin'].includes(profile?.role)).map((item) => (
             <Link key={item.href} href={item.href} className={`app-nav-item ${active(item.href) ? 'active' : ''}`}>
               <Icon name={item.icon} /><span>{item.label}</span>
             </Link>

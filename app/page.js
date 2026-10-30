@@ -85,6 +85,7 @@ export default function HomePage() {
     ['/stocktake', 'Stocktake', 'Physical counts', '✓'],
     ['/sales-report', 'Sales & Credit', 'Debtors and history', '≡'],
     ['/cashbook', 'Cash Book', 'Expenses and banking', '¤'],
+    ...(isAdmin ? [['/profit', 'Period Report', 'Sales, cash and expenses between two dates', '↗']] : []),
   ]
 
   return (
@@ -142,7 +143,7 @@ export default function HomePage() {
               <h2 className="mb-4 text-lg font-black">Management</h2>
               <div className="settings-list">
                 {[
-                  ['/alerts','Activity & Alerts'], ['/production-report','Production Report'], ['/profit','Profit Dashboard'], ['/records','Records & Discrepancies'], ['/corrections','Corrections'], ...(profile.role === 'super_admin' ? [['/users','Users & Roles']] : [])
+                  ['/alerts','Activity & Alerts'], ['/production-report','Production Report'], ['/profit','Period Report'], ['/records','Records & Discrepancies'], ['/corrections','Corrections'], ...(profile.role === 'super_admin' ? [['/users','Users & Roles']] : [])
                 ].map(([href, title]) => (
                   <Link key={href} href={href} className="settings-row"><span className="settings-row-icon">›</span><div><strong>{title}</strong></div><span className="settings-chevron">›</span></Link>
                 ))}

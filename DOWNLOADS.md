@@ -4,6 +4,12 @@
 **Production website:** https://maya-steel-works-mgt.vercel.app  
 **Private repository:** https://github.com/lumuxav/maya-steel-works
 
+## Current update: 0.2.0
+
+Period Report is available from Home and Cash Book. Choose From and To dates, then View report. Uganda calendar dates are inclusive. The cash-book operating start is Saturday, 31 October 2026. Web/PWA and existing online Android installations receive these interface changes after fully closing and reopening the app.
+
+The new APK uses version name 0.2.0 and a monotonically increasing build code. Release assets include `SHA256SUMS.txt` for integrity verification. The APK remains an internal debug-signed build, with the update limitation described below.
+
 ## Android — install the latest APK
 
 **[Open the latest Maya Android release](https://github.com/lumuxav/maya-steel-works/releases/latest)**
@@ -14,6 +20,8 @@
 4. Allow Android installation from that file/browser if the device asks you.
 5. Open Maya and sign in with your own Maya staff account.
 6. Verify the navigation: open a subpage, press Android Back to return; on Home press Back twice within about 2.2 seconds to exit.
+
+Production APKs publish directly to GitHub Releases. Optional pull-request build artifacts are separate and do not block releases if Actions storage is full.
 
 New releases use **versioned tags**, for example `maya-android-build-17`; the exact current version may be newer. The older fixed `maya-latest` tag is a **legacy build** and should not be used for the latest install. Avoid APKs obtained from an old GitHub Actions build/run.
 

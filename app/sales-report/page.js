@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { SYSTEM_BRANCH, getSystemUserIds } from '../../lib/branch'
 
@@ -156,6 +157,7 @@ export default function SalesReportPage() {
 
   return <main className="page-wrap">
     <div className="page-header-row"><div><p className="text-xs font-black uppercase tracking-[0.18em] text-amber-500">{SYSTEM_BRANCH}</p><h1 className="page-title">Sales & Credit Book</h1><p className="page-subtitle">Sales, debtors and payments for Maya Branch only.</p></div></div>
+    {isAdmin && <Link href="/profit" className="btn-secondary mb-5 inline-block rounded-xl px-4 py-3 font-bold">Period Report — select dates</Link>}
     {message && <div className={`mb-4 max-w-3xl rounded-xl border p-3 text-sm ${message.type === 'success' ? 'border-green-500/30 bg-green-500/10 text-green-500' : 'border-red-500/30 bg-red-500/10 text-red-500'}`}>{message.text}</div>}
     <div className="mb-6 grid max-w-3xl grid-cols-3 gap-3"><div className="page-card p-4"><p className="text-xs text-muted">Sales today</p><p className="mt-1 text-lg font-black">{todayRevenue.toLocaleString()}</p></div><div className="page-card p-4"><p className="text-xs text-muted">Cash had today</p><p className="mt-1 text-lg font-black text-green-500">{collectedOnDay(todayStr).toLocaleString()}</p></div><div className="page-card p-4"><p className="text-xs text-muted">Owed from today</p><p className="mt-1 text-lg font-black text-red-500">{todayOwed.toLocaleString()}</p></div></div>
     <div className="mb-6 grid max-w-md grid-cols-2 gap-2 rounded-xl bg-[var(--panel)] p-1"><button onClick={() => { setTab('sales'); setSelectedCustomer(null) }} className={`rounded-lg py-2 text-sm font-bold ${tab === 'sales' ? 'bg-amber-500 text-slate-950' : 'text-muted'}`}>Sales Record</button><button onClick={() => { setTab('debtors'); setSelectedCustomer(null) }} className={`rounded-lg py-2 text-sm font-bold ${tab === 'debtors' ? 'bg-amber-500 text-slate-950' : 'text-muted'}`}>Debtors {debtors.length ? `(${debtors.length})` : ''}</button></div>

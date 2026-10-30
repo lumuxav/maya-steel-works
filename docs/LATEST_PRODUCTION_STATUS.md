@@ -1,3 +1,11 @@
+# 31 October operating-start update — Maya 0.2.0
+
+The current change adds period financial reporting and changes the cash archive start to Saturday, 31 October 2026. See [reporting details and validation](MAYA_PERIOD_REPORT.md). Earlier October 12 plans below are historical and superseded for the operating date.
+
+Readiness observation on 29 October: the scheduled encrypted database backup run was skipped. The workflow is gated by `MAYA_BACKUPS_ENABLED`; a functioning keep-alive is not proof of a database backup. Verify and enable the existing backup setup before relying on unattended recovery. This update does not change backup credentials or erase database records.
+
+---
+
 # Maya Steel Works — Latest Production Status Addendum
 
 **Date:** 26 Sep 2026  

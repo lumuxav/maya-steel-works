@@ -1,86 +1,139 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { supabase } from '../../lib/supabase'
-import { SYSTEM_BRANCH, getSystemUserIds, isSystemBranch } from '../../lib/branch'
+import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { adminApi } from '../../lib/adminApi'
+import { MAYA_LAUNCH_LABEL } from '../../lib/mayaBusiness.mjs'
+import { periodPreset, periodReportCsv, validatePeriod } from '../../lib/mayaPeriodReport.mjs'
 
-const PERIODS = [
-  { key: 'today', label: 'Today' },
-  { key: '7d', label: 'Last 7 days' },
-  { key: '30d', label: 'Last 30 days' },
-  { key: 'custom', label: 'Custom range' },
-  { key: 'all', label: 'All time' }
-]
+const PRESETS = [['today', 'Today'], ['7d', 'Last 7 days'], ['month', 'This month'], ['last-month', 'Last month'], ['all', 'Since opening']]
+const currency = (value) => value == null ? 'Unavailable' : Number(value).toLocaleString('en-UG', { maximumFractionDigits: 2 })
+
+async function fetchReport(dates) {
+  validatePeriod(dates.from, dates.to)
+  const result = await adminApi(`/api/reports/period?${new URLSearchParams(dates)}`, { cache: 'no-store' })
+  if (!result.ok || !result.report) throw new Error(result.error || 'Could not load this report.')
+  return result.report
+}
+
+function Metric({ label, value, note, tone = '' }) {
+  return <div className="page-card min-w-0 p-4"><p className="text-xs text-muted">{label}</p><p className={`mt-2 break-words text-xl font-black sm:text-2xl ${tone}`}>{currency(value)}</p>{note && <p className="mt-2 text-xs text-muted">{note}</p>}</div>
+}
+
+function DetailList({ items }) {
+  return <dl className="space-y-3 text-sm">{items.map(([label, value]) => <div key={label} className="flex items-start justify-between gap-4"><dt className="text-muted">{label}</dt><dd className="text-right font-bold">{currency(value)}</dd></div>)}</dl>
+}
 
 export default function ProfitPage() {
-  const [profile, setProfile] = useState(null)
-  const [period, setPeriod] = useState('30d')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
-  const [sales, setSales] = useState([])
-  const [expenses, setExpenses] = useState([])
-  const [rawUnitCost, setRawUnitCost] = useState({})
-  const [fgUnitCost, setFgUnitCost] = useState({})
-  const [stockValue, setStockValue] = useState({ raw: 0, fg: 0 })
-  const [labelMap, setLabelMap] = useState({})
+  const [dates, setDates] = useState({ from: '', to: '' })
+  const [preset, setPreset] = useState('month')
+  const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [exportError, setExportError] = useState('')
+  const [exporting, setExporting] = useState(false)
+  const [visibleDays, setVisibleDays] = useState(31)
+  const request = useRef(0)
+
+  async function load(nextDates) {
+    const id = ++request.current
+    setError(''); setReport(null); setLoading(true); setVisibleDays(31)
+    try {
+      const result = await fetchReport(nextDates)
+      if (id !== request.current) return
+      setReport(result)
+    } catch (issue) { if (id === request.current) setError(issue.message) }
+    finally { if (id === request.current) setLoading(false) }
+  }
 
   useEffect(() => {
-    const load = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return (window.location.href = '/login')
-      const { data: prof } = await supabase.from('users').select('full_name, role').eq('id', session.user.id).single()
-      setProfile(prof)
-      if (!(prof?.role === 'admin' || prof?.role === 'super_admin')) { setLoading(false); return }
-
-      const systemUsers = await getSystemUserIds(supabase)
-      const { data: s } = await supabase.from('sales').select('*').order('created_at', { ascending: false }).limit(1000)
-      setSales((s || []).filter(x => systemUsers.has(x.sold_by)))
-      const { data: e } = await supabase.from('expenses').select('*').limit(1000)
-      setExpenses((e || []).filter(x => systemUsers.has(x.recorded_by)))
-
-      const { data: raws } = await supabase.from('raw_materials_admin_view').select('id, category, gauge, size_dimensions, quantity, total_landed_cost, current_branch')
-      const mayaRaws = (raws || []).filter(r => isSystemBranch(r.current_branch))
-      const rawIds = new Set(mayaRaws.map(r => r.id))
-      const { data: ins } = await supabase.from('stock_movements').select('item_id, quantity_change').eq('item_type', 'raw').in('movement_type', ['received', 'transfer_in'])
-      const initial = {}; (ins || []).filter(m => rawIds.has(m.item_id)).forEach(m => { initial[m.item_id] = (initial[m.item_id] || 0) + Number(m.quantity_change) })
-      const ruc = {}, labels = {}; let rawVal = 0
-      mayaRaws.forEach(r => { const init = initial[r.id] || Number(r.quantity) || 1; const uc = init > 0 ? Number(r.total_landed_cost) / init : 0; ruc[r.id] = uc; rawVal += uc * Number(r.quantity); labels['raw-' + r.id] = `${r.category} ${r.gauge || ''} ${r.size_dimensions || ''}` })
-      setRawUnitCost(ruc)
-
-      const { data: runs } = await supabase.from('production_log').select('finished_good_id, raw_material_id, raw_units_used, actual_yield')
-      const costByFg = {}, qtyByFg = {}
-      ;(runs || []).filter(run => rawIds.has(run.raw_material_id)).forEach(run => { const c = (Number(run.raw_units_used) || 0) * (ruc[run.raw_material_id] || 0); costByFg[run.finished_good_id] = (costByFg[run.finished_good_id] || 0) + c; qtyByFg[run.finished_good_id] = (qtyByFg[run.finished_good_id] || 0) + (Number(run.actual_yield) || 0) })
-      const fuc = {}; Object.keys(costByFg).forEach(k => { fuc[k] = qtyByFg[k] > 0 ? costByFg[k] / qtyByFg[k] : 0 })
-      setFgUnitCost(fuc)
-
-      const { data: fgs } = await supabase.from('finished_goods').select('id, name, gauge, size_dimensions, quantity, current_branch')
-      let fgVal = 0
-      ;(fgs || []).filter(f => isSystemBranch(f.current_branch)).forEach(f => { fgVal += (fuc[f.id] || 0) * Number(f.quantity); labels['finished-' + f.id] = `${f.name} ${f.gauge || ''} ${f.size_dimensions || ''}` })
-      setStockValue({ raw: rawVal, fg: fgVal }); setLabelMap(labels); setLoading(false)
-    }
-    load()
+    const id = ++request.current
+    const initial = periodPreset('month')
+    fetchReport(initial).then((result) => {
+      if (id === request.current) { setDates(initial); setReport(result) }
+    }).catch((issue) => {
+      if (id === request.current) { setDates(initial); setError(issue.message) }
+    }).finally(() => {
+      if (id === request.current) setLoading(false)
+    })
+    return () => { request.current += 1 }
   }, [])
 
-  const periodStart = () => { const now = new Date(); if (period === 'today') return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString(); if (period === '7d') return new Date(now.getTime() - 7*86400000).toISOString(); if (period === '30d') return new Date(now.getTime() - 30*86400000).toISOString(); if (period === 'custom' && fromDate) return new Date(fromDate + 'T00:00:00').toISOString(); return null }
-  const periodEnd = () => period === 'custom' && toDate ? new Date(toDate + 'T23:59:59').toISOString() : null
-  const start = periodStart(), end = periodEnd(), inPeriod = (t) => (!start || t >= start) && (!end || t <= end)
-  const pSales = sales.filter(s => inPeriod(s.created_at)), pExp = expenses.filter(e => inPeriod(e.created_at))
-  const revenue = pSales.reduce((s,x) => s + Number(x.total_amount), 0)
-  const cogs = pSales.reduce((s,x) => { if (x.item_type === 'service') return s; const uc = x.item_type === 'raw' ? (rawUnitCost[x.item_id] || 0) : (fgUnitCost[x.item_id] || 0); return s + Number(x.quantity) * uc }, 0)
-  const gross = revenue - cogs, expTotal = pExp.reduce((s,x) => s + Number(x.amount), 0), net = gross - expTotal
-  const collected = pSales.reduce((s,x) => s + Number(x.amount_paid), 0), owed = pSales.reduce((s,x) => s + Math.max(0, Number(x.total_amount) - Number(x.amount_paid)), 0)
-  const byItem = {}; pSales.forEach(s => { const key = s.item_type === 'service' ? `service-${s.item_label || 'Customer Material'}` : `${s.item_type}-${s.item_id}`; byItem[key] = byItem[key] || { qty: 0, revenue: 0, label: s.item_type === 'service' ? (s.item_label || 'Customer Material Service') : null }; byItem[key].qty += Number(s.quantity); byItem[key].revenue += Number(s.total_amount) })
-  const top = Object.entries(byItem).sort((a,b) => b[1].revenue - a[1].revenue).slice(0,8)
+  function choosePreset(key) {
+    const next = periodPreset(key)
+    setPreset(key); setDates(next); load(next)
+  }
 
-  if (!profile || loading) return <main className="page-wrap text-muted">Loading profit...</main>
-  if (profile.role !== 'admin' && profile.role !== 'super_admin') return <main className="page-wrap"><div className="page-card max-w-md p-6"><p className="font-black">Management only</p></div></main>
+  function editDate(key, value) {
+    request.current += 1
+    setLoading(false); setReport(null); setError(''); setPreset('custom')
+    setDates((previous) => ({ ...previous, [key]: value }))
+  }
 
-  return <main className="page-wrap"><div className="page-header-row"><div><p className="text-xs font-black uppercase tracking-[0.18em] text-amber-500">{SYSTEM_BRANCH}</p><h1 className="page-title">Profit Dashboard</h1><p className="page-subtitle">Revenue, stock cost and expenses for Maya Branch only.</p></div></div>
-    <div className="mb-4 flex flex-wrap gap-2">{PERIODS.map(p => <button key={p.key} onClick={() => setPeriod(p.key)} className={`rounded-xl border px-4 py-2 text-sm font-bold ${period === p.key ? 'border-amber-500 bg-amber-500 text-slate-950' : 'border-[var(--line)] text-muted'}`}>{p.label}</button>)}</div>
-    {period === 'custom' && <div className="mb-6 flex max-w-md gap-3"><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="input-base" /><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="input-base" /></div>}
-    <div className="mb-4 grid max-w-6xl grid-cols-2 gap-4 md:grid-cols-5"><div className="page-card p-4"><p className="text-xs text-muted">Revenue</p><p className="mt-1 text-xl font-black text-green-500">{revenue.toLocaleString()}</p></div><div className="page-card p-4"><p className="text-xs text-muted">Cost of goods</p><p className="mt-1 text-xl font-black text-red-500">{Math.round(cogs).toLocaleString()}</p></div><div className="page-card p-4"><p className="text-xs text-muted">Gross profit</p><p className="mt-1 text-xl font-black">{Math.round(gross).toLocaleString()}</p></div><div className="page-card p-4"><p className="text-xs text-muted">Expenses</p><p className="mt-1 text-xl font-black text-red-500">{expTotal.toLocaleString()}</p></div><div className="page-card border-amber-500/30 p-4"><p className="text-xs text-muted">Net profit</p><p className="mt-1 text-xl font-black text-amber-500">{Math.round(net).toLocaleString()}</p></div></div>
-    <div className="mb-10 grid max-w-6xl grid-cols-2 gap-4 md:grid-cols-4"><div className="page-card p-4"><p className="text-xs text-muted">Cash collected</p><p className="mt-1 text-lg font-black text-green-500">{collected.toLocaleString()}</p></div><div className="page-card p-4"><p className="text-xs text-muted">Still owed</p><p className="mt-1 text-lg font-black text-red-500">{owed.toLocaleString()}</p></div><div className="page-card p-4"><p className="text-xs text-muted">Raw stock value</p><p className="mt-1 text-lg font-black">{Math.round(stockValue.raw).toLocaleString()}</p></div><div className="page-card p-4"><p className="text-xs text-muted">Finished stock value</p><p className="mt-1 text-lg font-black">{Math.round(stockValue.fg).toLocaleString()}</p></div></div>
-    <h2 className="mb-3 text-lg font-black">Top sellers & services</h2><div className="page-card max-w-4xl overflow-x-auto"><table className="w-full min-w-[520px] text-left text-sm"><thead><tr className="border-b border-[var(--line)]"><th className="p-4">Item / Service</th><th className="p-4">Qty</th><th className="p-4">Revenue</th></tr></thead><tbody>{top.length === 0 && <tr><td colSpan={3} className="p-6 text-center text-muted">No Maya Branch sales in this period.</td></tr>}{top.map(([key,v]) => <tr key={key} className="border-b border-[var(--line)] last:border-0"><td className="p-4 font-bold">{v.label || labelMap[key] || key}</td><td className="p-4">{v.qty}</td><td className="p-4 font-black text-green-500">{v.revenue.toLocaleString()}</td></tr>)}</tbody></table></div>
+  async function download() {
+    if (!report || exporting) return
+    setExporting(true); setExportError('')
+    try {
+      const csv = periodReportCsv(report)
+      const filename = `Maya-Period-Report-${report.from}-to-${report.to}.csv`
+      if (window.Capacitor?.isNativePlatform?.()) {
+        const cap = window.Capacitor
+        if (cap.isPluginAvailable && (!cap.isPluginAvailable('Filesystem') || !cap.isPluginAvailable('Share'))) throw new Error('Install the latest Maya APK to export files, or open Maya in your browser.')
+        const filesystem = cap.Plugins?.Filesystem || cap.registerPlugin?.('Filesystem')
+        const share = cap.Plugins?.Share || cap.registerPlugin?.('Share')
+        if (!filesystem?.writeFile || !share?.share) throw new Error('Install the latest Maya APK to export files, or open Maya in your browser.')
+        const file = await filesystem.writeFile({ path: filename, data: csv, directory: 'CACHE', encoding: 'utf8' })
+        await share.share({ title: 'Maya Period Report', files: [file.uri], dialogTitle: 'Save or share report' })
+      } else {
+        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
+        const link = document.createElement('a')
+        link.href = url; link.download = filename
+        document.body.appendChild(link); link.click(); link.remove()
+        window.setTimeout(() => URL.revokeObjectURL(url), 30000)
+      }
+    } catch (issue) {
+      setExportError(issue.message || 'The report could not be exported. Please try again.')
+    } finally { setExporting(false) }
+  }
+
+  const t = report?.totals
+  return <main className="page-wrap period-report">
+    <div className="page-header-row"><div><p className="page-eyebrow">Maya Branch · Management</p><h1 className="page-title">Period Report</h1><p className="page-subtitle">See what Maya sold, received and spent between any two dates.</p></div><Link href="/cashbook" className="btn-secondary rounded-xl px-3 py-2 text-sm font-bold">Cash Book</Link></div>
+    <section className="page-card mb-6 p-4 sm:p-5" aria-label="Report date range">
+      <div className="mb-4 flex flex-wrap gap-2">{PRESETS.map(([key, label]) => <button key={key} type="button" onClick={() => choosePreset(key)} aria-pressed={preset === key} className={`rounded-xl border px-3 py-2 text-sm font-bold ${preset === key ? 'border-amber-500 bg-amber-500 text-slate-950' : 'border-[var(--line)]'}`}>{label}</button>)}</div>
+      <form onSubmit={(event) => { event.preventDefault(); load(dates) }} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <label className="min-w-0 text-sm font-bold" htmlFor="period-from">From<input id="period-from" type="date" required value={dates.from} onChange={(event) => editDate('from', event.target.value)} className="input-base mt-2 block w-full min-w-0" /></label>
+        <label className="min-w-0 text-sm font-bold" htmlFor="period-to">To (inclusive)<input id="period-to" type="date" required value={dates.to} onChange={(event) => editDate('to', event.target.value)} className="input-base mt-2 block w-full min-w-0" /></label>
+        <button type="submit" disabled={loading} className="rounded-xl bg-amber-500 px-5 py-3 font-black text-slate-950 disabled:opacity-50">{loading ? 'Calculating…' : 'View report'}</button>
+      </form>
+      <p className="mt-3 text-xs text-muted">Both dates are included. Uganda time · All amounts in UGX · Operating history begins {MAYA_LAUNCH_LABEL}.</p>
+    </section>
+    {error && <div role="alert" className="mb-5 rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm">{error}<button type="button" onClick={() => load(dates)} className="ml-3 font-bold underline">Retry</button></div>}
+    {exportError && <p role="alert" className="mb-5 rounded-xl border border-amber-500/40 p-4 text-sm">{exportError}</p>}
+    {loading && <p role="status" className="page-card p-6 text-muted">Loading the complete financial history…</p>}
+    {!report && !loading && !error && <p className="page-card p-6 text-muted">Choose your dates and select View report.</p>}
+    {report && <>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-black">{report.from} to {report.to}</h2><p className="mt-1 text-xs text-muted">{report.saleCount.toLocaleString()} sales · {report.operatingDays.toLocaleString()} operating days · Updated {new Date(report.generatedAt).toLocaleString('en-GB', { timeZone: 'Africa/Kampala' })} (Uganda)</p></div><button onClick={download} type="button" disabled={exporting} className="btn-secondary rounded-xl px-4 py-2 text-sm font-bold">{exporting ? 'Exporting…' : 'Export CSV'}</button></div>
+      {report.notes.length > 0 && <div className="mb-5 space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">{report.notes.map((note) => <p key={note}>{note}</p>)}</div>}
+      {report.saleCount === 0 && t.cashReceived === 0 && t.expenses === 0 && t.banked === 0 && t.pendingBanking === 0 && <p className="mb-5 text-sm text-muted">No recorded activity in this period.</p>}
+      <section aria-label="Period totals" className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Metric label="Net sales" value={t.netSales} note="Gross sales less dated credit adjustments" tone="text-green-500" />
+        <Metric label="Cash received" value={t.cashReceived} note="Cash at sale + debt payments + advances" tone="text-green-500" />
+        <Metric label="Expenses" value={t.expenses} note="Recorded operating expenses" tone="text-red-500" />
+        <Metric label="Net cash before banking" value={t.netCashFlow} note="Cash received minus expenses" tone="text-amber-500" />
+      </section>
+      <div className="mb-8 grid gap-5 lg:grid-cols-2">
+        <section className="page-card p-5"><h2 className="mb-4 text-lg font-black">Sales & collections</h2><DetailList items={[
+          ['Stock sales', t.stockSales], ['Customer material services', t.serviceSales], ['Gross sales', t.grossSales], ['Credit adjustments in period', t.adjustments],
+          ['Cash paid at sale', t.initialCash], ['Debt repayments received', t.repayments], ['Account advances received', t.advances], ['Still owed on these sales at period end', t.outstanding],
+        ]} /><p className="mt-4 text-xs text-muted">Repayments can relate to earlier sales. They increase cash only. Advances are not sales. Outstanding credit covers invoices created within the selected operating period.</p></section>
+        <section className="page-card p-5"><h2 className="mb-4 text-lg font-black">Cash reconciliation</h2><DetailList items={[
+          ['Opening cash carried forward', t.openingCash], ['+ Cash received', t.cashReceived], ['− Expenses', t.expenses], ['− Confirmed banking', t.banked], ['Closing cash in hand', t.closingCash], ['Pending banking (not deducted)', t.pendingBanking],
+        ]} /><p className="mt-4 text-xs text-muted">Banking moves cash into the bank; it does not reduce profit. Confirmation status reflects the current record. Negative cash balances indicate a reconciliation issue.</p></section>
+      </div>
+      <section className="mb-8" aria-label="Estimated profit"><h2 className="mb-3 text-lg font-black">Estimated profit</h2><div className="grid grid-cols-1 gap-3 sm:grid-cols-3"><Metric label="Estimated cost of goods" value={t.estimatedCostOfGoods} /><Metric label="Estimated gross profit" value={t.estimatedGrossProfit} /><Metric label="Estimated net profit" value={t.estimatedNetProfit} tone="text-amber-500" /></div><p className="mt-3 text-xs text-muted">Uses current recorded material and production costs; the system does not freeze costs at sale time. Service costs must be recorded in expenses. Returns reduce recorded credit but do not automatically reverse stock cost. These figures are estimates, not finalized accounts.</p></section>
+      <section className="mb-8"><h2 className="mb-3 text-lg font-black">Day-by-day breakdown</h2><div className="page-card overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable daily report"><table className="w-full min-w-[880px] text-right text-sm"><caption className="sr-only">Daily totals in UGX for the selected period</caption><thead><tr className="border-b border-[var(--line)]">{['Date', 'Opening', 'Net sales', 'Received', 'Expenses', 'Banked', 'Pending', 'Closing'].map((label) => <th key={label} scope="col" className="p-3">{label}</th>)}</tr></thead><tbody>{report.daily.slice(0, visibleDays).map((d) => <tr key={d.day} className="border-b border-[var(--line)] last:border-0"><th scope="row" className="whitespace-nowrap p-3 text-left"><Link href={`/cashbook?day=${d.day}`} className="underline">{d.day}</Link></th>{['openingCash', 'netSales', 'cashReceived', 'expenses', 'banked', 'pendingBanking', 'closingCash'].map((key) => <td key={key} className="p-3">{currency(d[key])}</td>)}</tr>)}{!report.daily.length && <tr><td colSpan={8} className="p-5 text-center text-muted">No operating days in this range yet.</td></tr>}</tbody></table></div>{report.daily.length > visibleDays && <button type="button" onClick={() => setVisibleDays((value) => value + 31)} className="btn-secondary mt-3 rounded-xl px-4 py-2 text-sm font-bold">Show 31 more days ({visibleDays} of {report.daily.length})</button>}<p className="mt-2 text-xs text-muted">Download CSV includes every day in the period.</p></section>
+      <div className="grid gap-5 lg:grid-cols-2"><section className="page-card p-5"><h2 className="mb-4 text-lg font-black">Expenses by category</h2>{!report.expenseCategories.length && <p className="text-sm text-muted">No recorded expenses.</p>}<DetailList items={report.expenseCategories.map((c) => [c.category, c.total])} /></section><section className="page-card p-5"><h2 className="mb-4 text-lg font-black">Top items & services</h2>{!report.topItems.length && <p className="text-sm text-muted">No recorded sales.</p>}<div className="space-y-3 text-sm">{report.topItems.map((item, index) => <div key={index} className="flex justify-between gap-4"><div className="min-w-0"><p className="break-words font-bold">{item.label}</p><p className="text-xs text-muted">Quantity {currency(item.quantity)} · Gross sales</p></div><p className="font-bold">{currency(item.sales)}</p></div>)}</div></section></div>
+    </>}
   </main>
 }
