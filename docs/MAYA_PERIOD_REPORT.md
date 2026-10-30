@@ -51,3 +51,5 @@ The database is not reset and no schema migration is required. Historical databa
 ## Readiness item found during this update
 
 The 29 October scheduled encrypted-backup run was skipped. The existing workflow requires the repository variable `MAYA_BACKUPS_ENABLED=true`; it is not evidence of a successful backup merely because the keep-alive runs succeed. Verify the Maya backup connection, encryption recipient, a successful artifact, and restore access before relying on unattended recovery. This release does not change backup secrets or claim that skipped runs are successful.
+
+The account reached its GitHub Actions artifact storage quota during validation. Optional PR installers/screenshots do not gate tests; production APKs publish directly to GitHub Releases. No prior artifacts or backup files were deleted. The existing database backup workflow still uses Actions artifacts and requires available quota as well as its enable flag.

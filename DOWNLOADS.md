@@ -21,6 +21,8 @@ The new APK uses version name 0.2.0 and a monotonically increasing build code. R
 5. Open Maya and sign in with your own Maya staff account.
 6. Verify the navigation: open a subpage, press Android Back to return; on Home press Back twice within about 2.2 seconds to exit.
 
+Production APKs publish directly to GitHub Releases. Optional pull-request build artifacts are separate and do not block releases if Actions storage is full.
+
 New releases use **versioned tags**, for example `maya-android-build-17`; the exact current version may be newer. The older fixed `maya-latest` tag is a **legacy build** and should not be used for the latest install. Avoid APKs obtained from an old GitHub Actions build/run.
 
 ### Updating an installed APK

@@ -77,10 +77,13 @@ export default function ProfitPage() {
       const csv = periodReportCsv(report)
       const filename = `Maya-Period-Report-${report.from}-to-${report.to}.csv`
       if (window.Capacitor?.isNativePlatform?.()) {
-        const plugins = window.Capacitor.Plugins
-        if (!plugins?.Filesystem?.writeFile || !plugins?.Share?.share) throw new Error('Install the latest Maya APK to export files, or open Maya in your browser.')
-        const file = await plugins.Filesystem.writeFile({ path: filename, data: csv, directory: 'CACHE', encoding: 'utf8' })
-        await plugins.Share.share({ title: 'Maya Period Report', files: [file.uri], dialogTitle: 'Save or share report' })
+        const cap = window.Capacitor
+        if (cap.isPluginAvailable && (!cap.isPluginAvailable('Filesystem') || !cap.isPluginAvailable('Share'))) throw new Error('Install the latest Maya APK to export files, or open Maya in your browser.')
+        const filesystem = cap.Plugins?.Filesystem || cap.registerPlugin?.('Filesystem')
+        const share = cap.Plugins?.Share || cap.registerPlugin?.('Share')
+        if (!filesystem?.writeFile || !share?.share) throw new Error('Install the latest Maya APK to export files, or open Maya in your browser.')
+        const file = await filesystem.writeFile({ path: filename, data: csv, directory: 'CACHE', encoding: 'utf8' })
+        await share.share({ title: 'Maya Period Report', files: [file.uri], dialogTitle: 'Save or share report' })
       } else {
         const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
         const link = document.createElement('a')

@@ -111,13 +111,15 @@ jobs:
           cp android/app/build/outputs/apk/debug/app-debug.apk Maya-Steel-Works.apk
           sha256sum Maya-Steel-Works.apk > SHA256SUMS.txt
 
-      - name: Upload APK artifact
+      - name: Upload optional PR APK artifact
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: Maya-Steel-Works-APK
           path: Maya-Steel-Works.apk
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1
 
       - name: Publish stable download release
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
