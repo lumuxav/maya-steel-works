@@ -1,8 +1,16 @@
 # 31 October operating-start update — Maya 0.2.0
 
-The current change adds period financial reporting and changes the cash archive start to Saturday, 31 October 2026. See [reporting details and validation](MAYA_PERIOD_REPORT.md). Earlier October 12 plans below are historical and superseded for the operating date.
+Version 0.2.0 is live on the production website and adds period financial reporting with the cash archive starting Saturday, 31 October 2026. See [reporting details and validation](MAYA_PERIOD_REPORT.md). Earlier operating-date plans are superseded.
 
-Readiness observation on 29 October: the scheduled encrypted database backup run was skipped. The workflow is gated by `MAYA_BACKUPS_ENABLED`; a functioning keep-alive is not proof of a database backup. Verify and enable the existing backup setup before relying on unattended recovery. This update does not change backup credentials or erase database records.
+Verified release on 30 October 2026:
+
+- Application commit: `bdae8b7fbe3c11cb9a3d2d73801054b6d48a5576`, merged in [PR #15](https://github.com/lumuxav/maya-steel-works/pull/15).
+- Production deployment `dpl_FtmcNwXuogVAokoP1t4ZxcBeGgwh` is Ready and serves `maya-steel-works-mgt.vercel.app`. The report page and refreshed service worker return HTTP 200; the financial API returns HTTP 401 with a private, no-store response without authentication.
+- [Android release 0.2.0, build 21](https://github.com/lumuxav/maya-steel-works/releases/tag/maya-android-build-21) contains the uploaded APK and SHA256SUMS.txt. APK SHA-256: `0a692e6d09cef461dd76b73e0aa6bbe193dfdfa7f5693d3848f11916b6dd1afe`.
+- [Main regression run](https://github.com/lumuxav/maya-steel-works/actions/runs/41002738439) passed 122 logic tests, mobile/desktop browser report flows, 22 route/API smoke checks, isolated database permission tests, and encrypted backup/restore fixture checks. [Android packaging](https://github.com/lumuxav/maya-steel-works/actions/runs/41002738424) and [iOS simulator validation](https://github.com/lumuxav/maya-steel-works/actions/runs/41002738421) passed.
+- Financial tests used synthetic data, not live customer records. This release does not migrate, reset or delete production database records.
+
+Remaining readiness work: the scheduled encrypted database backup run on 29 October was skipped. The workflow is gated by `MAYA_BACKUPS_ENABLED`; a functioning keep-alive is not proof of a database backup. GitHub Actions artifact storage is also full, preventing new backup artifacts and optional QA artifact uploads. Enable and verify the existing backup setup, resolve storage capacity, and confirm a successful live backup and restore procedure before relying on unattended recovery. The APK release publishes directly to Releases and is available despite this quota. Backup credentials and the enablement gate were not changed. Android remains debug-signed for internal installation; a stable release signing key is still needed for reliable long-term upgrades.
 
 ---
 
@@ -152,19 +160,9 @@ The same App plugin is included in the iOS validation build for future native iP
 
 The updated APK is now published as the repository's **Latest Release**, not merely left as an Actions artifact.
 
-Release tag:
+Use [Releases / Latest](https://github.com/lumuxav/maya-steel-works/releases/latest) and download `Maya-Steel-Works.apk`. New builds use versioned tags such as `maya-android-build-21`; see [installation instructions](../DOWNLOADS.md).
 
-`maya-latest`
-
-Release name:
-
-`Maya Steel Works — Latest Android`
-
-Direct APK:
-
-`https://github.com/lumuxav/maya-steel-works/releases/download/maya-latest/Maya-Steel-Works.apk`
-
-Normal staff installation should use Releases / the direct URL above rather than historical workflow artifacts.
+The old fixed `maya-latest` tag is historical and does not identify the current installer. Normal staff installation should use the latest versioned Release rather than historical workflow artifacts or the legacy tag.
 
 The current APK remains debug-signed for internal/direct installation. A stable production signing keystore is the next important Android distribution improvement so future upgrades can be installed reliably over existing versions.
 
@@ -195,5 +193,5 @@ Before changing production behavior:
 5. Preserve the Maya-Branch-only business rules and the Admin/Super Admin distinction.
 6. Avoid exposing Supabase server secrets.
 7. Avoid creating multiple Vercel integrations for the same production repo.
-8. For Android native-shell changes, update/build the APK and ensure the `maya-latest` Release is refreshed.
+8. For Android native-shell changes, update/build the APK and ensure the new versioned GitHub Release is marked Latest.
 9. For ordinary web/business changes, deploy through Vercel; a new APK is normally unnecessary.
