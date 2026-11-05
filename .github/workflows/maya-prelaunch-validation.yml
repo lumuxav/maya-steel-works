@@ -82,6 +82,8 @@ jobs:
           sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d maya_fixture -f tests/postgres/maya_ledger_integration.sql
           sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d maya_fixture -f supabase/migrations/20261009_maya_atomic_corrections_and_grants.sql
           sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d maya_fixture -f tests/postgres/maya_corrections_integration.sql
+          sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d maya_fixture -f supabase/migrations/20261105_maya_raw_stock_matching.sql
+          sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d maya_fixture -f tests/postgres/maya_raw_matching_integration.sql
       - name: Exercise encryption, decryption and isolated PostgreSQL restore
         run: |
           set -euo pipefail

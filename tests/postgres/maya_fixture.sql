@@ -13,7 +13,8 @@ CREATE TABLE public.users(
 CREATE TABLE public.raw_materials(
  id bigserial PRIMARY KEY, category text NOT NULL, gauge text,
  size_dimensions text, unit text NOT NULL DEFAULT 'pieces',
- quantity numeric DEFAULT 0, current_branch text DEFAULT 'Maya Branch'
+ quantity numeric DEFAULT 0, current_branch text DEFAULT 'Maya Branch',
+ created_at timestamptz DEFAULT now()
 );
 CREATE TABLE public.finished_goods(
  id bigserial PRIMARY KEY, name text NOT NULL, gauge text,

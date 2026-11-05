@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { SYSTEM_BRANCH, isSystemBranch, getSystemUserIds } from '../../lib/branch'
 import { getSessionProfile } from '../../lib/sessionCache'
+import { fetchRecipeBatches, batchLabel, batchNoteClass } from '../../lib/recipeBatches'
 
 export default function SalesPage() {
   const [profile, setProfile] = useState(null)
@@ -13,6 +14,8 @@ export default function SalesPage() {
   const [raws, setRaws] = useState([])
   const [recipes, setRecipes] = useState([])
   const [batches, setBatches] = useState([])
+  const [batchNote, setBatchNote] = useState(null)
+  const batchReq = useRef(0)
   const [itemId, setItemId] = useState('')
   const [qty, setQty] = useState('')
   const [price, setPrice] = useState('')
@@ -41,14 +44,25 @@ export default function SalesPage() {
     setTodaySales(admin ? branchRows : branchRows.filter(x => x.sold_by === session.user.id))
   }
 
-  const loadBatches = async (rec, admin) => {
+  // The batch menu for "Make & Sell". Matching is done by the database
+  // (public.maya_recipe_batches) - see lib/recipeBatches.js.
+  const loadBatches = async (rec) => {
+    const req = ++batchReq.current
+    setBatches([]); setBatchId(''); setBatchNote({ type: 'info', text: 'Loading stock…' })
+    const { rows, note } = await fetchRecipeBatches(supabase, rec)
+    if (req !== batchReq.current) return // a different standard was chosen while this loaded
+    setBatches(rows); setBatchNote(note)
+  }
+  const clearBatches = () => { batchReq.current++; setBatches([]); setBatchId(''); setBatchNote(null) }
+
+  const loadStock = async (admin) => {
     const source = admin ? 'raw_materials_admin_view' : 'raw_materials_employee_view'
-    const { data } = await supabase.from(source).select('*').ilike('category', rec.raw_category).gt('quantity', 0).order('created_at', { ascending: true })
-    let rows = (data || []).filter(r => isSystemBranch(r.current_branch))
-    if (rec.raw_gauge) rows = rows.filter(r => (r.gauge || '').toLowerCase().includes(rec.raw_gauge.toLowerCase()))
-    if (rec.raw_size) rows = rows.filter(r => (r.size_dimensions || '').toLowerCase().includes(rec.raw_size.toLowerCase()))
-    setBatches(rows)
-    setBatchId('')
+    const [fgsRes, rwsRes] = await Promise.all([
+      supabase.from('finished_goods').select('*').gt('quantity', 0).order('name'),
+      supabase.from(source).select('*').gt('quantity', 0).order('created_at', { ascending: false }),
+    ])
+    setFinished((fgsRes.data || []).filter(i => isSystemBranch(i.current_branch)))
+    setRaws((rwsRes.data || []).filter(i => isSystemBranch(i.current_branch)))
   }
 
   useEffect(() => {
@@ -57,16 +71,12 @@ export default function SalesPage() {
       if (!session) return (window.location.href = '/login')
       setProfile(prof)
       const admin = prof?.role === 'admin' || prof?.role === 'super_admin'
-      const source = admin ? 'raw_materials_admin_view' : 'raw_materials_employee_view'
 
-      const [fgsRes, rwsRes, recsRes] = await Promise.all([
-        supabase.from('finished_goods').select('*').gt('quantity', 0).order('name'),
-        supabase.from(source).select('*').gt('quantity', 0).order('created_at', { ascending: false }),
+      const [recsRes] = await Promise.all([
         supabase.from('production_recipes').select('*'),
+        loadStock(admin),
       ])
 
-      setFinished((fgsRes.data || []).filter(i => isSystemBranch(i.current_branch)))
-      setRaws((rwsRes.data || []).filter(i => isSystemBranch(i.current_branch)))
       setRecipes(recsRes.data || [])
       loadToday(session, admin)
     }
@@ -131,7 +141,9 @@ export default function SalesPage() {
       setMessage({ type: 'success', text: `Maya Branch sale recorded: ${q} × ${label}.` })
     }
     setQty(''); setPrice(''); setCustomer(''); setPaidAmount(''); setUnits(''); setStatus('paid'); setItemId('')
-    loadToday(session, isAdmin); setSaving(false)
+    loadToday(session, isAdmin); loadStock(isAdmin)
+    if (mode === 'make' && recipe) loadBatches(recipe) // refresh the remaining quantity in the batch menu
+    setSaving(false)
   }
 
   if (!profile) return <main className="page-wrap text-muted">Loading sales...</main>
@@ -141,7 +153,7 @@ export default function SalesPage() {
     {message && <div className={`mb-4 max-w-2xl rounded-xl border p-3 text-sm ${message.type === 'success' ? 'border-green-500/30 bg-green-500/10 text-green-500' : 'border-red-500/30 bg-red-500/10 text-red-500'}`}>{message.text}</div>}
     <form onSubmit={handleSubmit} className="page-card mb-8 max-w-2xl space-y-5 p-5 sm:p-6">
       <div className="grid grid-cols-3 gap-2 rounded-xl bg-[var(--panel-2)] p-1">{[['finished','Finished Goods'],['raw','Raw Materials'],['make','Make & Sell']].map(([key,label]) => <button key={key} type="button" onClick={() => { setMode(key); setItemId('') }} className={`rounded-lg py-2 text-xs font-bold sm:text-sm ${mode === key ? 'bg-amber-500 text-slate-950' : 'text-muted'}`}>{label}</button>)}</div>
-      {mode !== 'make' ? <div><label className="mb-2 block text-sm font-bold">Select Maya Branch item *</label><select value={itemId} onChange={(e) => setItemId(e.target.value)} required className="input-base"><option value="">Choose stock</option>{(mode === 'finished' ? finished : raws).map(i => <option key={i.id} value={i.id}>{mode === 'finished' ? `${i.name} ${i.gauge || ''} ${i.size_dimensions || ''}` : `${i.category} ${i.gauge || ''} ${i.size_dimensions || ''}`} — {i.quantity} {i.unit}</option>)}</select></div> : <><div><label className="mb-2 block text-sm font-bold">Production standard *</label><select value={recipeId} onChange={(e) => { setRecipeId(e.target.value); const rec = recipes.find(r => r.id === Number(e.target.value)); if (rec) loadBatches(rec, isAdmin) }} required className="input-base"><option value="">Select standard</option>{recipes.map(r => <option key={r.id} value={r.id}>{r.raw_category} {r.raw_gauge} → {r.finished_name}</option>)}</select></div><div><label className="mb-2 block text-sm font-bold">Maya Branch batch *</label><select value={batchId} onChange={(e) => setBatchId(e.target.value)} required className="input-base"><option value="">Select batch</option>{batches.map(b => <option key={b.id} value={b.id}>{new Date(b.created_at).toLocaleDateString()} — {b.quantity} {b.unit}</option>)}</select></div><div><label className="mb-2 block text-sm font-bold">Raw units used *</label><input type="number" step="0.001" value={units} onChange={(e) => setUnits(e.target.value)} required className="input-base" /></div></>}
+      {mode !== 'make' ? <div><label className="mb-2 block text-sm font-bold">Select Maya Branch item *</label><select value={itemId} onChange={(e) => setItemId(e.target.value)} required className="input-base"><option value="">Choose stock</option>{(mode === 'finished' ? finished : raws).map(i => <option key={i.id} value={i.id}>{mode === 'finished' ? `${i.name} ${i.gauge || ''} ${i.size_dimensions || ''}` : `${i.category} ${i.gauge || ''} ${i.size_dimensions || ''}`} — {i.quantity} {i.unit}</option>)}</select></div> : <><div><label className="mb-2 block text-sm font-bold">Production standard *</label><select value={recipeId} onChange={(e) => { setRecipeId(e.target.value); const rec = recipes.find(r => r.id === Number(e.target.value)); if (rec) loadBatches(rec); else clearBatches() }} required className="input-base"><option value="">Select standard</option>{recipes.map(r => <option key={r.id} value={r.id}>{r.raw_category} {r.raw_gauge} → {r.finished_name}</option>)}</select></div><div><label className="mb-2 block text-sm font-bold">Maya Branch batch *</label><select value={batchId} onChange={(e) => setBatchId(e.target.value)} required disabled={!recipe} className="input-base"><option value="">{recipe ? 'Select batch' : 'Choose a production standard first'}</option>{batches.map(b => <option key={b.id} value={b.id}>{batchLabel(b)}</option>)}</select>{batchNote && <p className={`mt-2 text-xs ${batchNoteClass(batchNote)}`}>{batchNote.text}</p>}</div><div><label className="mb-2 block text-sm font-bold">Raw units used *</label><input type="number" step="0.001" value={units} onChange={(e) => setUnits(e.target.value)} required className="input-base" /></div></>}
       <div className="grid grid-cols-2 gap-4"><div><label className="mb-2 block text-sm font-bold">Quantity *</label><input type="number" step="0.001" value={qty} onChange={(e) => setQty(e.target.value)} required className="input-base" /></div><div><label className="mb-2 block text-sm font-bold">Unit Price (UGX) *</label><input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} required className="input-base" /></div></div>
       <div><label className="mb-2 block text-sm font-bold">Customer Name</label><input value={customer} onChange={(e) => setCustomer(e.target.value)} className="input-base" placeholder="Blank = walk-in" /></div>
       <div><label className="mb-2 block text-sm font-bold">Payment Status *</label><div className="grid grid-cols-3 gap-2">{['paid','partial','credit'].map(x => <button key={x} type="button" onClick={() => setStatus(x)} className={`rounded-xl border py-3 text-sm font-bold capitalize ${status === x ? 'border-amber-500 bg-amber-500 text-slate-950' : 'btn-secondary'}`}>{x}</button>)}</div></div>

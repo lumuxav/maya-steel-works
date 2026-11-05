@@ -135,13 +135,13 @@ export default function RecipesPage() {
             <label className="block text-xs text-slate-400 mb-1">Raw Category *</label>
             <input value={form.raw_category} onChange={(e) => updateForm('raw_category', e.target.value)} required
               className="w-full rounded-lg bg-slate-700 border border-slate-600 text-white px-2 py-1.5 text-sm"
-              placeholder="e.g. plain (as typed in stock)" />
+              placeholder="e.g. plain (a word in the stock name)" />
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">Raw Gauge *</label>
             <input value={form.raw_gauge} onChange={(e) => updateForm('raw_gauge', e.target.value)} required
               className="w-full rounded-lg bg-slate-700 border border-slate-600 text-white px-2 py-1.5 text-sm"
-              placeholder="e.g. 1.2" />
+              placeholder="e.g. 1.2 (matches 1.2mm and 1.2 mm, not 1.25mm)" />
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">Raw Size (optional)</label>
