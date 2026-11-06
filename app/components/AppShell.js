@@ -37,6 +37,7 @@ const MANAGEMENT = [
   { href: '/alerts', label: 'Alerts', icon: 'alert' },
   { href: '/sales-report', label: 'Sales & Credit', icon: 'reports' },
   { href: '/profit', label: 'Period Report', icon: 'reports', managementOnly: true },
+  { href: '/recipes', label: 'Production Standards', icon: 'production', managementOnly: true },
   { href: '/settings', label: 'Settings', icon: 'settings' },
 ]
 
