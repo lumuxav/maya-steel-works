@@ -30,6 +30,9 @@ export default function SalesPage() {
   const [todaySales, setTodaySales] = useState([])
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState(null)
+  const messageRef = useRef(null)
+  // The form is long, so on a phone the result appears above the screen: bring it into view.
+  useEffect(() => { if (message) messageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [message])
 
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin'
   const recipe = recipes.find(r => r.id === Number(recipeId))
@@ -129,7 +132,7 @@ export default function SalesPage() {
         customer_name: customer || 'Walk-in'
       })
       if (err) { setMessage({ type: 'error', text: err }); setSaving(false); return }
-      setMessage({ type: 'success', text: `Made and sold ${q} × ${label}.` })
+      setMessage({ type: 'success', text: `Made and sold ${q} × ${label}. The ${u} ${batch.unit} of raw material was used and the goods were sold in one step, so none stay in Finished Goods.`, links: [{ href: '/inventory/ledger', label: 'See the stock trail →' }] })
     } else {
       const list = mode === 'finished' ? finished : raws
       const item = list.find(i => i.id === Number(itemId))
@@ -152,7 +155,7 @@ export default function SalesPage() {
 
   return <main className="page-wrap">
     <div className="page-header-row"><div><p className="text-xs font-black uppercase tracking-[0.18em] text-amber-500">{SYSTEM_BRANCH}</p><h1 className="page-title">Record Sale</h1><p className="page-subtitle">Only Maya Branch stock is available here.</p></div><Link href="/customer-work" className="rounded-xl border border-amber-500/40 px-3 py-2 text-sm font-bold text-amber-500">Customer material</Link></div>
-    {message && <div className={`mb-4 max-w-2xl rounded-xl border p-3 text-sm ${message.type === 'success' ? 'border-green-500/30 bg-green-500/10 text-green-500' : 'border-red-500/30 bg-red-500/10 text-red-500'}`}>{message.text}</div>}
+    {message && <div ref={messageRef} style={{ scrollMarginTop: '5.5rem' }} className={`mb-4 max-w-2xl rounded-xl border p-3 text-sm ${message.type === 'success' ? 'border-green-500/30 bg-green-500/10 text-green-500' : 'border-red-500/30 bg-red-500/10 text-red-500'}`}>{message.text}{message.links?.map(l => <Link key={l.href} href={l.href} className="ml-3 whitespace-nowrap font-black underline">{l.label}</Link>)}</div>}
     <form onSubmit={handleSubmit} className="page-card mb-8 max-w-2xl space-y-5 p-5 sm:p-6">
       <div className="grid grid-cols-3 gap-2 rounded-xl bg-[var(--panel-2)] p-1">{[['finished','Finished Goods'],['raw','Raw Materials'],['make','Make & Sell']].map(([key,label]) => <button key={key} type="button" onClick={() => { setMode(key); setItemId('') }} className={`rounded-lg py-2 text-xs font-bold sm:text-sm ${mode === key ? 'bg-amber-500 text-slate-950' : 'text-muted'}`}>{label}</button>)}</div>
       {mode !== 'make' ? <div><label className="mb-2 block text-sm font-bold">Select Maya Branch item *</label><select value={itemId} onChange={(e) => setItemId(e.target.value)} required className="input-base"><option value="">Choose stock</option>{(mode === 'finished' ? finished : raws).map(i => <option key={i.id} value={i.id}>{mode === 'finished' ? `${i.name} ${i.gauge || ''} ${i.size_dimensions || ''}` : `${i.category} ${i.gauge || ''} ${i.size_dimensions || ''}`} — {i.quantity} {i.unit}</option>)}</select></div> : <><div><label className="mb-2 block text-sm font-bold">Production standard *</label><select value={recipeId} onChange={(e) => { setRecipeId(e.target.value); const rec = recipes.find(r => r.id === Number(e.target.value)); if (rec) loadBatches(rec); else clearBatches() }} required className="input-base"><option value="">Select standard</option>{recipes.map(r => <option key={r.id} value={r.id}>{r.raw_category} {r.raw_gauge} → {r.finished_name}</option>)}</select><StandardsHint loaded={recipesLoaded} count={recipes.length} isAdmin={isAdmin} /></div><div><label className="mb-2 block text-sm font-bold">Maya Branch batch *</label><select value={batchId} onChange={(e) => setBatchId(e.target.value)} required disabled={!recipe} className="input-base"><option value="">{recipe ? 'Select batch' : 'Choose a production standard first'}</option>{batches.map(b => <option key={b.id} value={b.id}>{batchLabel(b)}</option>)}</select>{batchNote && <p className={`mt-2 text-xs ${batchNoteClass(batchNote)}`}>{batchNote.text}</p>}</div><div><label className="mb-2 block text-sm font-bold">Raw units used *</label><input type="number" step="0.001" value={units} onChange={(e) => setUnits(e.target.value)} required className="input-base" /></div></>}

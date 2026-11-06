@@ -5,6 +5,30 @@ import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { SYSTEM_BRANCH, isSystemBranch } from '../../lib/branch'
 import { getSessionProfile } from '../../lib/sessionCache'
+import { fmtQty } from '../../lib/stockTrail'
+
+const groupKey = (item, type) => type === 'raw'
+  ? `${item.category}|${item.gauge || ''}|${item.size_dimensions || ''}`
+  : `${item.name}|${item.gauge || ''}|${item.size_dimensions || ''}`
+
+const groupLabel = (item, type) => type === 'raw'
+  ? `${item.category} ${item.gauge || ''} ${item.size_dimensions || ''}`.trim()
+  : `${item.name} ${item.gauge || ''} ${item.size_dimensions || ''}`.trim()
+
+function buildGroups(items, type) {
+  const groups = {}
+  items.forEach(item => {
+    const key = groupKey(item, type)
+    if (!groups[key]) groups[key] = { key, label: groupLabel(item, type), unit: item.unit, totalQty: 0, batches: [] }
+    groups[key].totalQty += Number(item.quantity)
+    groups[key].batches.push(item)
+  })
+  const all = Object.values(groups)
+  return {
+    active: all.filter(g => g.totalQty > 0).sort((a, b) => b.totalQty - a.totalQty),
+    outOfStock: all.filter(g => g.totalQty <= 0).sort((a, b) => a.label.localeCompare(b.label)),
+  }
+}
 
 export default function InventoryPage() {
   const [profile, setProfile] = useState(null)
@@ -20,6 +44,8 @@ export default function InventoryPage() {
       try {
         const { session, profile: prof } = await getSessionProfile()
         if (!session) return (window.location.href = '/login')
+        // /inventory?tab=finished opens on Finished Goods (used by the "view in inventory" links)
+        if (new URLSearchParams(window.location.search).get('tab') === 'finished') setItemType('finished')
         setProfile(prof)
         const admin = prof?.role === 'admin' || prof?.role === 'super_admin'
         const rawSource = admin ? 'raw_materials_admin_view' : 'raw_materials_employee_view'
@@ -39,26 +65,15 @@ export default function InventoryPage() {
   }, [])
 
   const switchType = (t) => { setItemType(t); setExpandedGroup(null) }
-  const items = itemType === 'raw' ? rawItems : finishedItems
 
-  const groups = {}
-  items.forEach(item => {
-    const key = itemType === 'raw' ? `${item.category}|${item.gauge || ''}|${item.size_dimensions || ''}` : `${item.name}|${item.gauge || ''}|${item.size_dimensions || ''}`
-    if (!groups[key]) groups[key] = {
-      key,
-      label: itemType === 'raw' ? `${item.category} ${item.gauge || ''} ${item.size_dimensions || ''}`.trim() : `${item.name} ${item.gauge || ''} ${item.size_dimensions || ''}`.trim(),
-      unit: item.unit,
-      totalQty: 0,
-      batches: []
-    }
-    groups[key].totalQty += Number(item.quantity)
-    groups[key].batches.push(item)
-  })
-
-  const active = Object.values(groups).filter(g => g.totalQty > 0).sort((a, b) => b.totalQty - a.totalQty)
-  const outOfStock = Object.values(groups).filter(g => g.totalQty <= 0).sort((a, b) => a.label.localeCompare(b.label))
+  const raw = buildGroups(rawItems, 'raw')
+  const finished = buildGroups(finishedItems, 'finished')
+  const { active, outOfStock } = itemType === 'raw' ? raw : finished
+  const finishedPieces = finished.active.reduce((sum, g) => sum + g.totalQty, 0)
 
   if (!profile || loading) return <main className="page-wrap text-muted">Loading inventory...</main>
+
+  const tabClass = (t) => `rounded-lg py-2.5 text-sm font-bold ${itemType === t ? 'bg-amber-500 text-slate-950' : 'text-muted'}`
 
   return (
     <main className="page-wrap">
@@ -68,17 +83,29 @@ export default function InventoryPage() {
           <h1 className="page-title">Inventory</h1>
           <p className="page-subtitle">Stock physically held at Maya Branch only.</p>
         </div>
-        <Link href="/deliveries" className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-black text-slate-950">Receive stock</Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/inventory/ledger" className="btn-secondary rounded-xl px-4 py-2.5 text-sm font-bold">Stock movements</Link>
+          <Link href="/deliveries" className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-black text-slate-950">Receive stock</Link>
+        </div>
       </div>
 
-      <div className="mb-6 grid max-w-md grid-cols-2 gap-2 rounded-xl bg-[var(--panel)] p-1">
-        <button onClick={() => switchType('raw')} className={`rounded-lg py-2.5 text-sm font-bold ${itemType === 'raw' ? 'bg-amber-500 text-slate-950' : 'text-muted'}`}>Raw Materials</button>
-        <button onClick={() => switchType('finished')} className={`rounded-lg py-2.5 text-sm font-bold ${itemType === 'finished' ? 'bg-amber-500 text-slate-950' : 'text-muted'}`}>Finished Goods</button>
+      <div className="mb-3 grid max-w-md grid-cols-2 gap-2 rounded-xl bg-[var(--panel)] p-1" role="tablist" aria-label="Stock type">
+        <button role="tab" aria-selected={itemType === 'raw'} onClick={() => switchType('raw')} className={tabClass('raw')}>Raw Materials ({raw.active.length})</button>
+        <button role="tab" aria-selected={itemType === 'finished'} onClick={() => switchType('finished')} className={tabClass('finished')}>Finished Goods ({finished.active.length})</button>
       </div>
+      <p className="mb-6 max-w-xl text-xs leading-5 text-muted">
+        {itemType === 'raw'
+          ? 'Raw material goes up when a delivery is received and comes down when it is used in production or sold. Goods you have made are under Finished Goods.'
+          : `Finished goods go up when a production run is recorded and come down when they are sold${finished.active.length ? ` — ${fmtQty(finishedPieces)} pieces in stock now` : ''}. Open Lifecycle on any batch to see every step.`}
+      </p>
 
       <div className="mb-8 space-y-3">
         <div className="flex items-center justify-between"><h2 className="text-lg font-black">Active stock</h2><span className="text-xs text-muted">{active.length} item types</span></div>
-        {active.length === 0 && <div className="page-card p-6 text-center text-sm text-muted">No active stock at {SYSTEM_BRANCH}.</div>}
+        {active.length === 0 && <div className="page-card p-6 text-center text-sm text-muted">
+          {itemType === 'finished'
+            ? <>No finished goods in stock. Goods appear here once a production run is recorded on the <Link href="/production" className="font-bold text-amber-500 underline">Production</Link> page and stay until they are sold. <Link href="/inventory/ledger" className="font-bold text-amber-500 underline">See every stock movement →</Link></>
+            : `No active stock at ${SYSTEM_BRANCH}.`}
+        </div>}
         {active.map(group => {
           const open = expandedGroup === group.key
           return (
@@ -89,7 +116,7 @@ export default function InventoryPage() {
               </button>
               {open && <div className="border-t border-[var(--line)] p-4 space-y-2">
                 {group.batches.map(batch => <div key={batch.id} className="flex items-center justify-between gap-3 rounded-xl bg-[var(--panel-2)] p-3">
-                  <div><p className="text-sm font-bold">{Number(batch.quantity).toLocaleString()} {batch.unit}</p><p className="mt-1 text-xs text-muted">Received {new Date(batch.created_at).toLocaleDateString()}</p></div>
+                  <div><p className="text-sm font-bold">{Number(batch.quantity).toLocaleString()} {batch.unit}</p><p className="mt-1 text-xs text-muted">{itemType === 'raw' ? 'Received' : 'First made'} {new Date(batch.created_at).toLocaleDateString('en-GB', { timeZone: 'Africa/Kampala' })}</p></div>
                   <Link href={`/inventory/history?id=${batch.id}&type=${itemType}`} className="text-xs font-bold text-amber-500">Lifecycle →</Link>
                 </div>)}
               </div>}

@@ -41,7 +41,7 @@ CREATE TABLE public.production_log(
 CREATE TABLE public.stock_movements(
  id bigserial PRIMARY KEY, item_type text NOT NULL, item_id bigint NOT NULL,
  movement_type text NOT NULL, quantity_change numeric NOT NULL,
- notes text, recorded_by uuid REFERENCES public.users(id),
+ reference_id bigint, notes text, recorded_by uuid REFERENCES public.users(id),
  created_at timestamptz DEFAULT now()
 );
 CREATE TABLE public.sales(

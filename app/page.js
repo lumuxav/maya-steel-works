@@ -78,6 +78,7 @@ export default function HomePage() {
 
   const ops = [
     ['/inventory', 'Inventory', 'Maya Branch stock', '▦'],
+    ['/inventory/ledger', 'Stock Movements', 'Every receive, use, production and sale', '⇅'],
     ['/deliveries', 'Receive Delivery', 'Incoming materials', '↓'],
     ['/sales', 'Record Sale', 'Sell Maya-owned stock', '$'],
     ['/customer-work', 'Customer Material', 'Press, cut or shape customer-owned metal', '🛠'],
