@@ -17,6 +17,17 @@ BEGIN
  PERFORM public.test_assert(private.maya_raw_matches('Ebibaati 2.5 x 2mm 8ft',NULL,NULL,'ebibaati','2',NULL),'gauge directly after an x is found (2.5 x 2mm)');
  PERFORM public.test_assert(private.maya_raw_matches('Ebibaati 2.5 "" x 1.5mm 8ft',NULL,NULL,'ebibaati','1.5','2.5"'),'stray quote marks and inch mark ignored');
  PERFORM public.test_assert(NOT private.maya_raw_matches('Ebibaati 2.5 x 2mm 8ft',NULL,NULL,'ebibaati','2.5mm',NULL),'2.5 inch width is not mistaken for a 2.5mm gauge');
+ -- real stock rows from the live Maya database (category | gauge | size are separate fields)
+ PERFORM public.test_assert(private.maya_raw_matches('Plain plates','1.5mm','5 x 4ft damage','plain','1.5',NULL),'short words: plain / 1.5 finds Plain plates 1.5mm');
+ PERFORM public.test_assert(private.maya_raw_matches('Plain plates','1.2mm','4 x 8ft','Plain plates','1.2mm','4x8ft'),'4x8ft finds stock typed 4 x 8ft');
+ PERFORM public.test_assert(NOT private.maya_raw_matches('Plain plates','1.2mm','6 x 4ft damage','Plain plates','1.2mm','4x8ft'),'4x8ft does not match 6 x 4ft damage');
+ PERFORM public.test_assert(private.maya_raw_matches('Plain plates','1mm','4 x 8ft','Plain plates','1','4x8ft'),'gauge 1 finds 1mm');
+ PERFORM public.test_assert(NOT private.maya_raw_matches('Plain plates','1.5mm','4 x 6ft','Plain plates','1','4x6ft'),'gauge 1 does not find 1.5mm');
+ PERFORM public.test_assert(private.maya_raw_matches('Ebibaati','2.5 " x 2mm','8ft','ebibaati','2',NULL),'Ebibaati gauge 2 finds 2.5" x 2mm');
+ PERFORM public.test_assert(NOT private.maya_raw_matches('Ebibaati','2.5 "" x 1.5mm','8ft','ebibaati','2',NULL),'Ebibaati gauge 2 must NOT take the 1.5mm stock');
+ PERFORM public.test_assert(private.maya_raw_matches('Ebibaati','3 "  x 1.5mm','8ft','ebibaati','1.5mm',NULL),'Ebibaati 1.5mm finds 3" x 1.5mm');
+ PERFORM public.test_assert(private.maya_raw_matches('Sliding door channels','1.2 mm','8ft','sliding door channels','1.2mm',NULL),'1.2mm finds stock typed 1.2 mm');
+ PERFORM public.test_assert(private.maya_raw_matches('Z - Angles','3mm','20 ft','Z - Angles','3mm','20ft'),'category with a dash and 20 ft vs 20ft');
  -- must NOT match
  PERFORM public.test_assert(NOT private.maya_raw_matches('Plain','1.25mm',NULL,'plain','1.2',NULL),'1.2 must not match 1.25mm');
  PERFORM public.test_assert(NOT private.maya_raw_matches('Plain','11.2mm',NULL,'plain','1.2',NULL),'1.2 must not match 11.2mm');

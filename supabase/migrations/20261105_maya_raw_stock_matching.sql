@@ -1,12 +1,12 @@
 -- Maya raw-stock <-> production-standard matching (single source of truth).
 --
--- Problem fixed: the Production / Make & Sell "Maya Branch batch" menu was empty
--- because matching was done in the browser against raw_materials_*_view with
---   * category: exact text equality (ilike without wildcards),
---   * gauge/size: plain substring, and a NULL gauge can never match,
---   * errors from the view/RLS silently ignored.
--- Stock received in "Simple" mode (gauge = NULL) or typed as "Plain plates" when
--- the standard says "plain" therefore never appeared, and staff could not produce.
+-- Problem fixed: the Production / Make & Sell "Maya Branch batch" menu matched stock
+-- to a production standard in the browser with
+--   * category: exact text equality (ilike without wildcards), so a standard saying
+--     "plain" never matched stock "Plain plates",
+--   * gauge/size: plain substring, so "4x8ft" never matched stock "4 x 8ft", and
+--     "1.2" also matched "11.2mm" / "1.25mm",
+--   * errors from the view/RLS silently ignored (an empty menu with no explanation).
 --
 -- New rule (used by BOTH the menu and the production function, so they can never
 -- disagree): every filled-in field of the standard (category, gauge, size) must
