@@ -37,7 +37,7 @@ export default function CustomerWorkPage() {
   const loadToday = async (session, admin) => {
     const systemUsers = await getSystemUserIds(supabase)
     const start = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).toISOString()
-    const { data } = await supabase.from('sales').select('*').eq('item_type', 'service').gte('created_at', start).order('created_at', { ascending: false })
+    const { data } = await supabase.from('sales').select('*').eq('item_type', 'service').like('item_label', 'Customer Material - %').gte('created_at', start).order('created_at', { ascending: false })
     const branchRows = (data || []).filter(x => systemUsers.has(x.sold_by))
     setTodayJobs(admin ? branchRows : branchRows.filter(x => x.sold_by === session.user.id))
   }

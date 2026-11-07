@@ -81,6 +81,7 @@ export default function HomePage() {
     ['/inventory/ledger', 'Stock Movements', 'Every receive, use, production and sale', '⇅'],
     ['/deliveries', 'Receive Delivery', 'Incoming materials', '↓'],
     ['/sales', 'Record Sale', 'Sell Maya-owned stock', '$'],
+    ['/sales?mode=job', 'Custom Job', 'Cut or make from stock on the spot: metal + labour', '✂'],
     ['/customer-work', 'Customer Material', 'Press, cut or shape customer-owned metal', '🛠'],
     ['/production', 'Production', 'Output and usage', '⚙'],
     ['/stocktake', 'Stocktake', 'Physical counts', '✓'],

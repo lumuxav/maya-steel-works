@@ -12,6 +12,7 @@ const KINDS = [
   ['received', 'Received'],
   ['used_in_production', 'Used in production'],
   ['produced', 'Produced'],
+  ['used_in_job', 'Used in custom job'],
   ['sold', 'Sold'],
   ['stocktake_adjustment', 'Count corrections'],
 ]
@@ -20,6 +21,7 @@ const FLOW = [
   ['📥', 'Receive', 'A delivery adds raw material to stock.'],
   ['🏭', 'Produce', 'Raw sheets used come off raw stock and the goods made are added to Finished Goods.'],
   ['💰', 'Sell', 'A sale takes raw material or finished goods off stock. Make & Sell does both steps at once.'],
+  ['🔧', 'Custom job', 'When a customer asks for something made from stock on the spot, the part of the stock used comes off raw stock, and the metal and the labour are charged separately.'],
   ['📋', 'Count', 'A stocktake corrects any difference between the book and the shelf.'],
 ]
 
@@ -95,7 +97,7 @@ export default function StockMovementsPage() {
       </div>
 
       <details className="mb-6 max-w-3xl rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4">
-        <summary className="cursor-pointer text-sm font-black">How stock moves <span className="font-medium text-muted">— receive, produce, sell, count</span></summary>
+        <summary className="cursor-pointer text-sm font-black">How stock moves <span className="font-medium text-muted">— receive, produce, sell, custom job, count</span></summary>
         <ol className="mt-3 space-y-2.5">
           {FLOW.map(([icon, title, text], i) => (
             <li key={title} className="text-xs leading-5 text-muted"><strong className="text-[var(--text)]">{i + 1}. {icon} {title}.</strong> {text}</li>

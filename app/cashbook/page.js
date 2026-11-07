@@ -254,7 +254,7 @@ export default function CashbookPage() {
         <div className="page-card overflow-hidden">
           <div className="grid grid-cols-2 gap-px bg-[var(--line)] sm:grid-cols-4">
             <div className="bg-[var(--panel)] p-4"><p className="text-xs text-muted">Stock sales</p><p className="mt-1 text-lg font-black">{stockSalesCash.toLocaleString()}</p></div>
-            <div className="bg-[var(--panel)] p-4"><p className="text-xs text-muted">Customer material</p><p className="mt-1 text-lg font-black">{serviceSalesCash.toLocaleString()}</p></div>
+            <div className="bg-[var(--panel)] p-4"><p className="text-xs text-muted">Labour &amp; customer material</p><p className="mt-1 text-lg font-black">{serviceSalesCash.toLocaleString()}</p></div>
             <div className="bg-[var(--panel)] p-4"><p className="text-xs text-muted">Debt repayments</p><p className="mt-1 text-lg font-black text-green-500">{debtPaymentCash.toLocaleString()}</p></div>
             <div className="bg-[var(--panel)] p-4"><p className="text-xs text-muted">Other cash</p><p className="mt-1 text-lg font-black">{otherCash.toLocaleString()}</p></div>
           </div>

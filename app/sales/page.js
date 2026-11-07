@@ -7,6 +7,8 @@ import { SYSTEM_BRANCH, isSystemBranch, getSystemUserIds } from '../../lib/branc
 import { getSessionProfile } from '../../lib/sessionCache'
 import { fetchRecipeBatches, batchLabel, batchNoteClass } from '../../lib/recipeBatches'
 import StandardsHint from '../components/StandardsHint'
+import CustomJobForm from '../components/CustomJobForm'
+import { groupSalesByJob, stripJobSuffix } from '../../lib/customJob.mjs'
 
 export default function SalesPage() {
   const [profile, setProfile] = useState(null)
@@ -74,6 +76,8 @@ export default function SalesPage() {
     const load = async () => {
       const { session, profile: prof } = await getSessionProfile()
       if (!session) return (window.location.href = '/login')
+      // /sales?mode=job opens the Custom Job tab (used by the Home shortcut)
+      if (new URLSearchParams(window.location.search).get('mode') === 'job') setMode('job')
       setProfile(prof)
       const admin = prof?.role === 'admin' || prof?.role === 'super_admin'
 
@@ -151,13 +155,24 @@ export default function SalesPage() {
     setSaving(false)
   }
 
+  // after a custom job: refresh today's list and the stock on the shelf
+  const reloadAfterJob = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) loadToday(session, isAdmin)
+    loadStock(isAdmin)
+  }
+
   if (!profile) return <main className="page-wrap text-muted">Loading sales...</main>
+
+  const badge = (st) => `rounded-lg px-2 py-1 text-[10px] font-black uppercase ${st === 'paid' ? 'bg-green-500/10 text-green-500' : st === 'partial' ? 'bg-amber-500/10 text-amber-500' : 'bg-red-500/10 text-red-500'}`
+  const todayEntries = groupSalesByJob(todaySales)
 
   return <main className="page-wrap">
     <div className="page-header-row"><div><p className="text-xs font-black uppercase tracking-[0.18em] text-amber-500">{SYSTEM_BRANCH}</p><h1 className="page-title">Record Sale</h1><p className="page-subtitle">Only Maya Branch stock is available here.</p></div><Link href="/customer-work" className="rounded-xl border border-amber-500/40 px-3 py-2 text-sm font-bold text-amber-500">Customer material</Link></div>
     {message && <div ref={messageRef} style={{ scrollMarginTop: '5.5rem' }} className={`mb-4 max-w-2xl rounded-xl border p-3 text-sm ${message.type === 'success' ? 'border-green-500/30 bg-green-500/10 text-green-500' : 'border-red-500/30 bg-red-500/10 text-red-500'}`}>{message.text}{message.links?.map(l => <Link key={l.href} href={l.href} className="ml-3 whitespace-nowrap font-black underline">{l.label}</Link>)}</div>}
-    <form onSubmit={handleSubmit} className="page-card mb-8 max-w-2xl space-y-5 p-5 sm:p-6">
-      <div className="grid grid-cols-3 gap-2 rounded-xl bg-[var(--panel-2)] p-1">{[['finished','Finished Goods'],['raw','Raw Materials'],['make','Make & Sell']].map(([key,label]) => <button key={key} type="button" onClick={() => { setMode(key); setItemId('') }} className={`rounded-lg py-2 text-xs font-bold sm:text-sm ${mode === key ? 'bg-amber-500 text-slate-950' : 'text-muted'}`}>{label}</button>)}</div>
+    <div className="page-card mb-8 max-w-2xl space-y-5 p-5 sm:p-6">
+      <div className="grid grid-cols-2 gap-2 rounded-xl bg-[var(--panel-2)] p-1 sm:grid-cols-4" role="tablist" aria-label="Sale type">{[['finished','Finished Goods'],['raw','Raw Materials'],['make','Make & Sell'],['job','Custom Job']].map(([key,label]) => <button key={key} type="button" role="tab" aria-selected={mode === key} onClick={() => { setMode(key); setItemId(''); setMessage(null) }} className={`rounded-lg py-2.5 text-xs font-bold sm:text-sm ${mode === key ? 'bg-amber-500 text-slate-950' : 'text-muted'}`}>{label}</button>)}</div>
+      {mode === 'job' ? <CustomJobForm raws={raws} onMessage={setMessage} onRecorded={reloadAfterJob} /> : <form onSubmit={handleSubmit} className="space-y-5">
       {mode !== 'make' ? <div><label className="mb-2 block text-sm font-bold">Select Maya Branch item *</label><select value={itemId} onChange={(e) => setItemId(e.target.value)} required className="input-base"><option value="">Choose stock</option>{(mode === 'finished' ? finished : raws).map(i => <option key={i.id} value={i.id}>{mode === 'finished' ? `${i.name} ${i.gauge || ''} ${i.size_dimensions || ''}` : `${i.category} ${i.gauge || ''} ${i.size_dimensions || ''}`} — {i.quantity} {i.unit}</option>)}</select></div> : <><div><label className="mb-2 block text-sm font-bold">Production standard *</label><select value={recipeId} onChange={(e) => { setRecipeId(e.target.value); const rec = recipes.find(r => r.id === Number(e.target.value)); if (rec) loadBatches(rec); else clearBatches() }} required className="input-base"><option value="">Select standard</option>{recipes.map(r => <option key={r.id} value={r.id}>{r.raw_category} {r.raw_gauge} → {r.finished_name}</option>)}</select><StandardsHint loaded={recipesLoaded} count={recipes.length} isAdmin={isAdmin} /></div><div><label className="mb-2 block text-sm font-bold">Maya Branch batch *</label><select value={batchId} onChange={(e) => setBatchId(e.target.value)} required disabled={!recipe} className="input-base"><option value="">{recipe ? 'Select batch' : 'Choose a production standard first'}</option>{batches.map(b => <option key={b.id} value={b.id}>{batchLabel(b)}</option>)}</select>{batchNote && <p className={`mt-2 text-xs ${batchNoteClass(batchNote)}`}>{batchNote.text}</p>}</div><div><label className="mb-2 block text-sm font-bold">Raw units used *</label><input type="number" step="0.001" value={units} onChange={(e) => setUnits(e.target.value)} required className="input-base" /></div></>}
       <div className="grid grid-cols-2 gap-4"><div><label className="mb-2 block text-sm font-bold">Quantity *</label><input type="number" step="0.001" value={qty} onChange={(e) => setQty(e.target.value)} required className="input-base" /></div><div><label className="mb-2 block text-sm font-bold">Unit Price (UGX) *</label><input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} required className="input-base" /></div></div>
       <div><label className="mb-2 block text-sm font-bold">Customer Name</label><input value={customer} onChange={(e) => setCustomer(e.target.value)} className="input-base" placeholder="Blank = walk-in" /></div>
@@ -165,7 +180,16 @@ export default function SalesPage() {
       {status === 'partial' && <input type="number" step="0.01" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} required className="input-base" placeholder="Amount paid now" />}
       {total > 0 && <div className="rounded-xl bg-[var(--panel-2)] p-4"><span className="text-sm text-muted">Total: </span><strong className="text-amber-500">{total.toLocaleString()} UGX</strong></div>}
       <button type="submit" disabled={saving} className="w-full rounded-xl bg-amber-500 py-3.5 font-black text-slate-950 disabled:opacity-50">{saving ? 'Saving...' : 'Complete Sale & Deduct Maya Stock'}</button>
-    </form>
-    <section className="max-w-2xl"><h2 className="mb-3 text-lg font-black">Today&apos;s Maya Branch sales {isAdmin ? '(all staff)' : '(yours)'}</h2><div className="space-y-3">{todaySales.length === 0 && <div className="page-card p-6 text-center text-sm text-muted">No sales recorded today.</div>}{todaySales.map(s => <div key={s.id} className="page-card p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-black">{s.item_label}</p><p className="mt-1 text-sm text-muted">{s.quantity} × {Number(s.unit_price).toLocaleString()} — <strong>{Number(s.total_amount).toLocaleString()} UGX</strong> · {s.customer_name}</p></div><span className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${s.payment_status === 'paid' ? 'bg-green-500/10 text-green-500' : s.payment_status === 'partial' ? 'bg-amber-500/10 text-amber-500' : 'bg-red-500/10 text-red-500'}`}>{s.payment_status}</span></div></div>)}</div></section>
+      </form>}
+    </div>
+    <section className="max-w-2xl"><h2 className="mb-3 text-lg font-black">Today&apos;s Maya Branch sales {isAdmin ? '(all staff)' : '(yours)'}</h2><div className="space-y-3">{todaySales.length === 0 && <div className="page-card p-6 text-center text-sm text-muted">No sales recorded today.</div>}{todayEntries.map(entry => entry.kind === 'job'
+      ? <div key={entry.key} className="page-card border-amber-500/30 p-4" data-testid="job-card">
+          <div className="flex items-start justify-between gap-3"><div><p className="font-black">Custom job #{entry.jobId}{entry.description ? ` — ${entry.description}` : ''}</p><p className="mt-1 text-sm text-muted">{entry.customer} · <strong>{Number(entry.total).toLocaleString()} UGX</strong>{entry.status !== 'paid' ? ` · paid ${Number(entry.paid).toLocaleString()}` : ''}</p></div><span className={badge(entry.status)}>{entry.status}</span></div>
+          <div className="mt-3 space-y-1.5 rounded-xl bg-[var(--panel-2)] p-3 text-xs">
+            {entry.materials.map(m => <div key={m.id} className="flex justify-between gap-3"><span className="min-w-0 break-words text-muted">Metal: {Number(m.quantity).toLocaleString(undefined, { maximumFractionDigits: 3 })} × {stripJobSuffix(m.item_label)}</span><strong className="shrink-0">{Number(m.total_amount).toLocaleString()}</strong></div>)}
+            {entry.labour && <div className="flex justify-between gap-3"><span className="text-muted">Labour</span><strong className="shrink-0">{Number(entry.labour.total_amount).toLocaleString()}</strong></div>}
+          </div>
+        </div>
+      : <div key={entry.key} className="page-card p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-black">{entry.sale.item_label}</p><p className="mt-1 text-sm text-muted">{entry.sale.quantity} × {Number(entry.sale.unit_price).toLocaleString()} — <strong>{Number(entry.sale.total_amount).toLocaleString()} UGX</strong> · {entry.sale.customer_name}</p></div><span className={badge(entry.sale.payment_status)}>{entry.sale.payment_status}</span></div></div>)}</div></section>
   </main>
 }
